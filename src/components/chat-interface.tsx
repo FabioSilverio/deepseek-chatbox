@@ -1452,7 +1452,7 @@ function ArtifactViewer({
             />
           )}
           {artifact.type === "markdown" && (
-            <div className="markdown-body p-8 overflow-y-auto h-full text-[16px]">
+            <div className="markdown-body p-8 overflow-y-auto h-full text-[16px] font-serif">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={markdownComponents}
@@ -1466,6 +1466,27 @@ function ArtifactViewer({
               <code>{artifact.content}</code>
             </pre>
           )}
+
+          {/* Floating copy button inside content area */}
+          <button
+            type="button"
+            onClick={copyContent}
+            className="artifact-copy-fab"
+            title="Copiar conteúdo"
+            aria-label="Copiar conteúdo"
+          >
+            {copied ? (
+              <>
+                <Check size={15} />
+                <span>Copiado!</span>
+              </>
+            ) : (
+              <>
+                <Copy size={15} />
+                <span>Copiar</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>

@@ -762,6 +762,7 @@ details[open] summary::before {
 }
 
 .artifact-viewer-body {
+  position: relative;
   flex: 1;
   overflow: hidden;
   background: var(--ctp-crust);
@@ -785,5 +786,45 @@ details[open] summary::before {
 /* artifact viewer code block dark bg */
 .artifact-viewer-body pre {
   background: var(--ctp-crust);
+}
+
+/* Floating copy FAB inside artifact body */
+.artifact-copy-fab {
+  position: absolute;
+  bottom: 18px;
+  right: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(14, 14, 20, 0.88);
+  color: var(--ctp-subtext1);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 150ms cubic-bezier(0.34, 1.2, 0.64, 1),
+    box-shadow 160ms ease;
+}
+
+.artifact-copy-fab:hover {
+  background: rgba(203, 166, 247, 0.15);
+  border-color: rgba(203, 166, 247, 0.4);
+  color: var(--ctp-mauve);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(203, 166, 247, 0.15);
+}
+
+.artifact-copy-fab:active {
+  transform: scale(0.95);
+  transition: transform 80ms ease;
 }
 
