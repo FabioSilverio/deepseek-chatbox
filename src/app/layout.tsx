@@ -6,7 +6,6 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-sans",
   subsets: ["latin"],
   display: "swap",
-  axes: ["ital"],
 });
 
 const newsreader = Newsreader({
