@@ -423,7 +423,7 @@ export function ChatInterface() {
             <div className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-[linear-gradient(135deg,var(--ctp-mauve),var(--ctp-teal))] text-[var(--ctp-crust)] shadow-[0_8px_24px_rgba(203,166,247,0.28)]">
               <Sparkles size={15} strokeWidth={2.4} />
             </div>
-            <span className="font-serif text-[19px] leading-none text-[var(--ctp-text)]">
+            <span className="text-[16px] font-semibold leading-none tracking-[-0.01em] text-[var(--ctp-text)]">
               Deepbox
             </span>
           </div>
@@ -633,14 +633,14 @@ export function ChatInterface() {
 
       {/* ── Main ── */}
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 bg-[rgba(30,30,46,0.62)] px-4 backdrop-blur-2xl sm:px-6">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.08] bg-[rgba(9,9,14,0.9)] px-4 backdrop-blur-2xl sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="grid size-9 place-items-center rounded-[12px] border border-white/10 bg-white/[0.05] lg:hidden">
-              <Sparkles size={17} />
+            <div className="grid size-8 place-items-center rounded-[10px] border border-white/[0.08] bg-white/[0.04] lg:hidden">
+              <Sparkles size={15} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="truncate font-serif text-lg leading-tight tracking-normal">
+                <p className="truncate text-[15px] font-semibold leading-tight tracking-[-0.01em]">
                   {activeProject.name}
                 </p>
                 {activeProject.type === "project" && (
@@ -721,7 +721,7 @@ export function ChatInterface() {
           <div className="relative shrink-0 px-3 pb-4 sm:px-6 sm:pb-6">
             <form
               onSubmit={submitMessage}
-              className="mx-auto w-full max-w-4xl rounded-[26px] border border-white/12 bg-[rgba(24,24,37,0.82)] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.35)] backdrop-blur-2xl"
+              className="mx-auto w-full max-w-4xl rounded-[22px] border border-white/[0.09] bg-[rgba(11,11,17,0.96)] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.6)] backdrop-blur-2xl"
             >
               {modules.length > 0 ? (
                 <div className="grid gap-2 p-2 sm:grid-cols-2">
@@ -750,7 +750,7 @@ export function ChatInterface() {
                 onPaste={handlePaste}
                 onKeyDown={handleKeyDown}
                 placeholder="Fala comigo..."
-                className="max-h-[220px] min-h-16 w-full resize-none bg-transparent px-4 py-3 font-serif text-[18px] leading-8 text-[var(--ctp-text)] outline-none placeholder:text-[var(--ctp-overlay1)]"
+                className="max-h-[220px] min-h-16 w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-7 text-[var(--ctp-text)] outline-none placeholder:text-[var(--ctp-overlay1)]"
               />
 
               <div className="flex flex-col gap-3 border-t border-white/10 px-2 pb-1 pt-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1125,15 +1125,18 @@ function EmptyState({
 }) {
   return (
     <div className="mx-auto flex min-h-[42vh] w-full max-w-2xl flex-col justify-center">
-      <p className="font-serif text-4xl leading-tight tracking-normal text-[var(--ctp-text)] sm:text-5xl">
+      <p className="text-[32px] font-semibold leading-tight tracking-[-0.02em] text-[var(--ctp-text)] sm:text-[40px]">
         O que vamos pensar hoje?
+      </p>
+      <p className="mt-2 text-[15px] text-[var(--ctp-overlay1)]">
+        Selecione um modo e comece a conversar.
       </p>
       <div className="mt-7 flex flex-wrap gap-2">
         {starterPrompts.map((prompt) => (
           <button
             key={prompt}
             type="button"
-            className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-2 text-left text-sm text-[var(--ctp-subtext0)] transition hover:border-[var(--ctp-lavender)]/40 hover:bg-white/[0.075] hover:text-[var(--ctp-text)]"
+            className="rounded-[10px] border border-white/[0.08] bg-white/[0.03] px-4 py-2 text-left text-[13px] text-[var(--ctp-subtext0)] transition hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
             onClick={() => onPickPrompt(prompt)}
           >
             {prompt}
@@ -1176,18 +1179,18 @@ function MessageBubble({
     >
       {!isUser ? (
         <div
-          className={`mt-1 grid size-8 shrink-0 place-items-center rounded-[11px] bg-[linear-gradient(135deg,var(--ctp-mauve),var(--ctp-blue))] text-[var(--ctp-crust)] ${
-            isLive ? "avatar-live" : "shadow-[0_14px_35px_rgba(137,180,250,0.18)]"
+          className={`mt-0.5 grid size-7 shrink-0 place-items-center rounded-[9px] bg-[linear-gradient(135deg,var(--ctp-mauve),var(--ctp-blue))] text-white ${
+            isLive ? "avatar-live" : "shadow-[0_6px_20px_rgba(137,180,250,0.22)]"
           }`}
         >
-          <Sparkles size={16} />
+          <Sparkles size={14} />
         </div>
       ) : null}
 
       <div
         className={`min-w-0 ${
           isUser
-            ? "max-w-[min(760px,92%)] rounded-[22px] border border-white/10 bg-[rgba(49,50,68,0.78)] px-5 py-4 shadow-[0_14px_50px_rgba(0,0,0,0.22)]"
+            ? "max-w-[min(680px,90%)] rounded-[16px] border border-white/[0.08] bg-[rgba(18,18,26,0.95)] px-5 py-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
             : "w-full max-w-3xl"
         }`}
       >
@@ -1200,7 +1203,7 @@ function MessageBubble({
         ) : null}
 
         {message.reasoning ? (
-          <details className="mb-4 rounded-[16px] border border-[var(--ctp-mauve)]/20 bg-[var(--ctp-surface0)]/40 p-3 text-sm text-[var(--ctp-subtext0)]">
+          <details className="mb-4 rounded-[12px] border border-[var(--ctp-mauve)]/15 bg-[rgba(14,14,22,0.7)] p-3 text-sm text-[var(--ctp-subtext0)]">
             <summary className="cursor-pointer select-none font-medium text-[var(--ctp-mauve)]">
               Raciocinio
             </summary>
@@ -1212,8 +1215,10 @@ function MessageBubble({
 
         {display || (isLive && message.content) ? (
           <div
-            className={`markdown-body font-serif ${
-              isUser ? "text-[17px]" : "text-[18px]"
+            className={`markdown-body ${
+              isUser
+                ? "text-[15px] leading-[1.65]"
+                : "font-serif text-[17.5px]"
             }`}
           >
             <ReactMarkdown
