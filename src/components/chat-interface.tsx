@@ -114,6 +114,7 @@ export function ChatInterface() {
   const [projectSettingsId, setProjectSettingsId] = useState<string | null>(null);
 
   const endRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const activeMode = useMemo(() => getChatMode(modeId), [modeId]);
   const activeProject = useMemo(
@@ -135,8 +136,16 @@ export function ChatInterface() {
   }, [apiKey]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, status]);
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: isStreaming ? "instant" : "smooth" });
+  }, [messages, isStreaming]);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || !status) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [status]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -335,7 +344,7 @@ export function ChatInterface() {
   const canSubmit = (input.trim().length > 0 || modules.length > 0) && !isStreaming;
 
   return (
-    <div className="flex min-h-dvh overflow-hidden bg-[var(--app-bg)] text-[var(--ctp-text)]">
+    <div className="flex h-dvh overflow-hidden bg-[var(--app-bg)] text-[var(--ctp-text)]">
 
       {/* ── Sidebar ── */}
       <aside className="hidden w-[260px] shrink-0 flex-col border-r border-white/10 bg-[var(--sidebar-bg)] backdrop-blur-2xl lg:flex">
@@ -448,7 +457,7 @@ export function ChatInterface() {
       </aside>
 
       {/* ── Main ── */}
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 bg-[rgba(30,30,46,0.62)] px-4 backdrop-blur-2xl sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <div className="grid size-9 place-items-center rounded-[12px] border border-white/10 bg-white/[0.05] lg:hidden">
@@ -495,24 +504,29 @@ export function ChatInterface() {
           </div>
         </header>
 
-        <section className="relative flex min-h-0 flex-1 flex-col">
+        <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_22%_8%,rgba(137,180,250,0.12),transparent_28%),radial-gradient(circle_at_72%_4%,rgba(148,226,213,0.10),transparent_26%)]" />
-          <div className="relative min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-8 sm:px-6">
+          <div ref={scrollContainerRef} className="relative min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-8 sm:px-6">
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-7">
               {messages.length === 0 ? (
                 <EmptyState onPickPrompt={setInput} />
               ) : (
-                messages.map((message) => (
+                messages.map((message, i) => (
                   <MessageBubble
                     key={message.id}
                     message={message}
                     copied={copiedId === message.id}
                     onCopy={() => void copyMessage(message)}
+                    isLive={
+                      isStreaming &&
+                      i === messages.length - 1 &&
+                      message.role === "assistant"
+                    }
                   />
                 ))
               )}
               {status ? (
-                <div className="message-enter flex items-center gap-3 pl-1 text-sm text-[var(--ctp-subtext0)]">
+                <div className="status-enter flex items-center gap-3 pl-1 text-sm text-[var(--ctp-subtext0)]">
                   <span className="thinking-dot" />
                   <span>{status}</span>
                 </div>
@@ -908,10 +922,12 @@ function MessageBubble({
   message,
   copied,
   onCopy,
+  isLive = false,
 }: {
   message: ChatMessage;
   copied: boolean;
   onCopy: () => void;
+  isLive?: boolean;
 }) {
   const isUser = message.role === "user";
 
@@ -922,7 +938,11 @@ function MessageBubble({
       }`}
     >
       {!isUser ? (
-        <div className="mt-1 grid size-8 shrink-0 place-items-center rounded-[11px] bg-[linear-gradient(135deg,var(--ctp-mauve),var(--ctp-blue))] text-[var(--ctp-crust)] shadow-[0_14px_35px_rgba(137,180,250,0.18)]">
+        <div
+          className={`mt-1 grid size-8 shrink-0 place-items-center rounded-[11px] bg-[linear-gradient(135deg,var(--ctp-mauve),var(--ctp-blue))] text-[var(--ctp-crust)] ${
+            isLive ? "avatar-live" : "shadow-[0_14px_35px_rgba(137,180,250,0.18)]"
+          }`}
+        >
           <Sparkles size={16} />
         </div>
       ) : null}
@@ -965,8 +985,9 @@ function MessageBubble({
             >
               {message.content}
             </ReactMarkdown>
+            {isLive && <span className="streaming-cursor" />}
           </div>
-        ) : message.role === "assistant" && !message.error ? (
+        ) : message.role === "assistant" && !message.error && !message.reasoning ? (
           <div className="flex items-center gap-3 text-sm text-[var(--ctp-subtext0)]">
             <span className="thinking-dot" />
             <span>...</span>
