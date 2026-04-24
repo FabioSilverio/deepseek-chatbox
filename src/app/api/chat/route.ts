@@ -105,8 +105,10 @@ export async function POST(request: Request) {
           } else {
             send({
               type: "status",
-              message: "Nao encontrei fontes web confiaveis agora.",
+              message: "Busca web não retornou resultados — respondendo com conhecimento próprio.",
             });
+            // Tell the AI search was attempted but returned nothing
+            searchContext = `Web search was attempted for this query but returned no results. Answer from your training knowledge and be transparent about it.`;
           }
         }
 
@@ -127,7 +129,13 @@ export async function POST(request: Request) {
             messages: [
               {
                 role: "system",
-                content: buildSystemPrompt(mode.search, mode.model, searchContext, project),
+                content: buildSystemPrompt(
+                  mode.search,
+                  mode.model,
+                  searchContext,
+                  project,
+                  lastUserMessage?.content,
+                ),
               },
               ...messages,
             ],
@@ -298,6 +306,7 @@ function buildSystemPrompt(
   model: string,
   searchContext: string,
   project: ProjectContext,
+  searchQuery?: string,
 ): string {
   const currentDate = new Date().toISOString().slice(0, 10);
   const modelLabel =
@@ -343,9 +352,21 @@ function buildSystemPrompt(
   }
 
   if (searchContext) {
+    const queryLine = searchQuery
+      ? `Search query used: "${searchQuery}"`
+      : "";
     lines.push(
-      "Use the following web context when relevant. Do not invent sources. Cite source numbers inline.",
-      searchContext,
+      [
+        "⚠️ IMPORTANT: A live web search was already performed before this response.",
+        queryLine,
+        "Real-time results are provided below. You HAVE access to current web information via these results.",
+        "Build your answer from the web results. Cite sources inline as [1], [2], etc.",
+        "Never say you cannot browse the internet — the search was done for you.",
+        "---",
+        searchContext,
+      ]
+        .filter(Boolean)
+        .join("\n"),
     );
   }
 

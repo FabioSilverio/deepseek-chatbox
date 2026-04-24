@@ -137,6 +137,7 @@ export function ChatInterface() {
   const endRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const titledProjectsRef = useRef<Set<string>>(new Set());
   const activeProject = useMemo(
     () => projects.find((p) => p.id === activeProjectId) ?? projects[0],
     [activeProjectId, projects],
@@ -176,6 +177,47 @@ export function ChatInterface() {
     textarea.style.height = "0px";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`;
   }, [input]);
+
+  // Auto-generate title after first complete exchange in a chat conversation
+  useEffect(() => {
+    if (isStreaming) return;
+    const project = activeProject;
+    if (project.type !== "chat") return;
+    if (titledProjectsRef.current.has(project.id)) return;
+
+    const userMsgs = project.messages.filter((m) => m.role === "user");
+    const assistantMsgs = project.messages.filter(
+      (m) => m.role === "assistant" && m.content && !m.error,
+    );
+    if (userMsgs.length !== 1 || assistantMsgs.length !== 1) return;
+
+    titledProjectsRef.current.add(project.id);
+    const projectId = project.id;
+    const userContent = userMsgs[0].content;
+    const assistantContent = assistantMsgs[0].content;
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/title", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(apiKey ? { "X-Deepseek-Key": apiKey } : {}),
+          },
+          body: JSON.stringify({
+            userMessage: userContent.slice(0, 400),
+            assistantSnippet: assistantContent.slice(0, 500),
+          }),
+        });
+        if (!res.ok) return;
+        const { title } = (await res.json()) as { title: string | null };
+        if (!title) return;
+        updateProject(projectId, (p) => ({ ...p, name: title }));
+      } catch {
+        // non-critical — silently ignore
+      }
+    })();
+  }, [isStreaming, activeProject, apiKey]);
 
   async function submitMessage(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();

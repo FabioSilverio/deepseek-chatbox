@@ -8,8 +8,22 @@ export type SearchResult = {
   excerpt?: string;
 };
 
+// Realistic browser User-Agent to avoid being blocked by DuckDuckGo
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; DeepseekChatbox/1.0; +https://localhost)";
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+const BROWSER_HEADERS = {
+  "User-Agent": USER_AGENT,
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+  "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+  "Accept-Encoding": "gzip, deflate, br",
+  "Cache-Control": "no-cache",
+  Pragma: "no-cache",
+  "Upgrade-Insecure-Requests": "1",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+};
 
 export async function collectSearchContext(
   query: string,
@@ -97,49 +111,93 @@ async function searchDuckDuckGo(
   query: string,
   limit: number,
 ): Promise<SearchResult[]> {
-  const url = new URL("https://html.duckduckgo.com/html/");
-  url.searchParams.set("q", query);
+  // Try standard HTML endpoint first, fall back to lite version
+  try {
+    const results = await searchDuckDuckGoHtml(query, limit, "https://html.duckduckgo.com/html/");
+    if (results.length > 0) return results;
+    // If we got 0 results from main endpoint, try lite as fallback
+    const liteResults = await searchDuckDuckGoHtml(query, limit, "https://lite.duckduckgo.com/lite/");
+    return liteResults;
+  } catch {
+    // Try lite endpoint as final fallback
+    try {
+      return await searchDuckDuckGoHtml(query, limit, "https://lite.duckduckgo.com/lite/");
+    } catch {
+      return [];
+    }
+  }
+}
 
-  const response = await fetch(url, {
+async function searchDuckDuckGoHtml(
+  query: string,
+  limit: number,
+  baseEndpoint: string,
+): Promise<SearchResult[]> {
+  const url = new URL(baseEndpoint);
+  url.searchParams.set("q", query);
+  // Request in English to ensure consistent HTML structure
+  url.searchParams.set("kl", "us-en");
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
     cache: "no-store",
-    headers: {
-      "User-Agent": USER_AGENT,
-      Accept: "text/html,application/xhtml+xml",
-    },
-    signal: AbortSignal.timeout(9000),
+    headers: BROWSER_HEADERS,
+    signal: AbortSignal.timeout(10000),
   });
 
   if (!response.ok) {
-    throw new Error(`Search failed with ${response.status}`);
+    throw new Error(`Search returned ${response.status}`);
   }
 
   const html = await response.text();
   const $ = cheerio.load(html);
   const results: SearchResult[] = [];
 
-  $(".result").each((_, element) => {
-    if (results.length >= limit) return false;
+  // DuckDuckGo HTML uses .result / .result__a / .result__snippet
+  // Lite version uses a table structure with .result-link / .result-snippet
+  const isLite = baseEndpoint.includes("lite");
 
-    const root = $(element);
-    const anchor = root.find(".result__a").first();
-    const rawHref = anchor.attr("href");
-    const title = cleanText(anchor.text());
-    const url = unwrapDuckDuckGoUrl(rawHref);
-    const snippet = cleanText(root.find(".result__snippet").text());
-
-    if (!title || !url) return undefined;
-
-    results.push({
-      title,
-      url,
-      snippet,
-      displayUrl: makeDisplayUrl(url),
+  if (isLite) {
+    $("tr").each((_, row) => {
+      if (results.length >= limit) return false;
+      const anchor = $(row).find("a.result-link");
+      if (!anchor.length) return undefined;
+      const title = cleanText(anchor.text());
+      const href = anchor.attr("href");
+      const resolvedUrl = href ? resolveRedirect(href) : undefined;
+      const snippet = cleanText($(row).next("tr").find(".result-snippet").text());
+      if (!title || !resolvedUrl) return undefined;
+      results.push({ title, url: resolvedUrl, snippet, displayUrl: makeDisplayUrl(resolvedUrl) });
+      return undefined;
     });
-
-    return undefined;
-  });
+  } else {
+    $(".result:not(.result--ad)").each((_, element) => {
+      if (results.length >= limit) return false;
+      const root = $(element);
+      const anchor = root.find(".result__a").first();
+      const rawHref = anchor.attr("href");
+      const title = cleanText(anchor.text());
+      const resolvedUrl = unwrapDuckDuckGoUrl(rawHref);
+      const snippet = cleanText(root.find(".result__snippet").text());
+      if (!title || !resolvedUrl) return undefined;
+      results.push({ title, url: resolvedUrl, snippet, displayUrl: makeDisplayUrl(resolvedUrl) });
+      return undefined;
+    });
+  }
 
   return results;
+}
+
+function resolveRedirect(href: string): string | undefined {
+  try {
+    const url = new URL(href, "https://lite.duckduckgo.com");
+    const uddg = url.searchParams.get("uddg");
+    if (uddg) return decodeURIComponent(uddg);
+    if (href.startsWith("http")) return href;
+    return undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function fetchReadableExcerpt(url: string): Promise<string | undefined> {
@@ -147,7 +205,7 @@ async function fetchReadableExcerpt(url: string): Promise<string | undefined> {
     const response = await fetch(url, {
       cache: "no-store",
       headers: {
-        "User-Agent": USER_AGENT,
+        ...BROWSER_HEADERS,
         Accept: "text/html,text/plain;q=0.9,*/*;q=0.8",
       },
       signal: AbortSignal.timeout(6500),
