@@ -94,9 +94,11 @@ export async function POST(request: Request) {
                 : "Buscando na web...",
           });
 
+          const braveApiKey = process.env.BRAVE_SEARCH_API_KEY ?? undefined;
           const sources = await collectSearchContext(
             lastUserMessage.content,
             mode.search,
+            braveApiKey,
           );
 
           if (sources.length > 0) {

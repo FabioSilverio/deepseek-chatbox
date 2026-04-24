@@ -8,72 +8,59 @@ export type SearchResult = {
   excerpt?: string;
 };
 
-// ── SearXNG — primary (open meta-search, JSON API, works from cloud IPs) ─────
+// ── Brave Search API — primary (reliable from cloud IPs, 2k/month free) ──────
 
-type SearXNGResponse = {
-  results?: Array<{
-    title?: string;
-    url?: string;
-    content?: string;
-  }>;
+type BraveSearchResponse = {
+  web?: {
+    results?: Array<{
+      title?: string;
+      url?: string;
+      description?: string;
+      extra_snippets?: string[];
+    }>;
+  };
 };
 
-// Multiple public instances as fallback chain
-const SEARXNG_INSTANCES = [
-  "https://searx.be",
-  "https://priv.au",
-  "https://searxng.world",
-  "https://search.sapti.me",
-  "https://paulgo.io",
-  "https://search.ononoki.org",
-];
-
-async function searchSearXNG(
+async function searchBrave(
   query: string,
   limit: number,
+  apiKey: string,
 ): Promise<SearchResult[]> {
-  for (const instance of SEARXNG_INSTANCES) {
-    try {
-      const url = new URL(`${instance}/search`);
-      url.searchParams.set("q", query);
-      url.searchParams.set("format", "json");
-      url.searchParams.set("language", "auto");
-      url.searchParams.set("safesearch", "0");
+  const url = new URL("https://api.search.brave.com/res/v1/web/search");
+  url.searchParams.set("q", query);
+  url.searchParams.set("count", String(Math.min(limit, 20)));
+  url.searchParams.set("search_lang", "en");
+  url.searchParams.set("safesearch", "off");
 
-      const response = await fetch(url.toString(), {
-        cache: "no-store",
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (compatible; Deepbox/1.0; +https://deepbox.chat)",
-          Accept: "application/json",
-        },
-        signal: AbortSignal.timeout(8000),
-      });
+  const response = await fetch(url.toString(), {
+    cache: "no-store",
+    headers: {
+      "Accept": "application/json",
+      "Accept-Encoding": "gzip",
+      "X-Subscription-Token": apiKey,
+    },
+    signal: AbortSignal.timeout(10000),
+  });
 
-      if (!response.ok) continue;
-
-      const data = (await response.json()) as SearXNGResponse;
-      if (!data.results?.length) continue;
-
-      const results = data.results
-        .slice(0, limit)
-        .map((item) => ({
-          title: item.title ?? "",
-          url: item.url ?? "",
-          snippet: item.content ?? "",
-          displayUrl: makeDisplayUrl(item.url ?? ""),
-        }))
-        .filter((r) => r.title && r.url);
-
-      if (results.length > 0) return results;
-    } catch {
-      continue;
-    }
+  if (!response.ok) {
+    throw new Error(`Brave Search returned ${response.status}: ${await response.text().catch(() => "")}`);
   }
-  return [];
+
+  const data = (await response.json()) as BraveSearchResponse;
+  const items = data.web?.results ?? [];
+
+  return items
+    .slice(0, limit)
+    .map((item) => ({
+      title: item.title ?? "",
+      url: item.url ?? "",
+      snippet: item.description ?? item.extra_snippets?.[0] ?? "",
+      displayUrl: makeDisplayUrl(item.url ?? ""),
+    }))
+    .filter((r) => r.title && r.url);
 }
 
-// ── Jina AI Search — secondary (no key, JSON API) ─────────────────────────────
+// ── Jina AI Search — secondary (no key required) ─────────────────────────────
 
 type JinaSearchResponse = {
   data?: Array<{
@@ -88,7 +75,7 @@ async function searchJina(
   query: string,
   limit: number,
 ): Promise<SearchResult[]> {
-  // Jina Search: query goes as path segment, not query param
+  // Query goes as a URL path segment
   const url = `https://s.jina.ai/${encodeURIComponent(query)}`;
 
   const response = await fetch(url, {
@@ -118,13 +105,69 @@ async function searchJina(
     .filter((r) => r.title && r.url);
 }
 
-// ── DuckDuckGo HTML — tertiary (often blocked from datacenter IPs) ────────────
+// ── SearXNG — tertiary (open meta-search) ────────────────────────────────────
+
+type SearXNGResponse = {
+  results?: Array<{ title?: string; url?: string; content?: string }>;
+};
+
+const SEARXNG_INSTANCES = [
+  "https://searx.be",
+  "https://priv.au",
+  "https://searxng.world",
+  "https://paulgo.io",
+];
+
+async function searchSearXNG(
+  query: string,
+  limit: number,
+): Promise<SearchResult[]> {
+  for (const instance of SEARXNG_INSTANCES) {
+    try {
+      const url = new URL(`${instance}/search`);
+      url.searchParams.set("q", query);
+      url.searchParams.set("format", "json");
+      url.searchParams.set("safesearch", "0");
+
+      const response = await fetch(url.toString(), {
+        cache: "no-store",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; Deepbox/1.0)",
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(7000),
+      });
+
+      if (!response.ok) continue;
+
+      const data = (await response.json()) as SearXNGResponse;
+      if (!data.results?.length) continue;
+
+      const results = data.results
+        .slice(0, limit)
+        .map((item) => ({
+          title: item.title ?? "",
+          url: item.url ?? "",
+          snippet: item.content ?? "",
+          displayUrl: makeDisplayUrl(item.url ?? ""),
+        }))
+        .filter((r) => r.title && r.url);
+
+      if (results.length > 0) return results;
+    } catch {
+      continue;
+    }
+  }
+  return [];
+}
+
+// ── DuckDuckGo HTML — last resort ─────────────────────────────────────────────
 
 const BROWSER_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
   Accept:
-    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
   "Accept-Language": "en-US,en;q=0.9",
   "Cache-Control": "no-cache",
 };
@@ -149,16 +192,15 @@ async function searchDuckDuckGo(
   const $ = cheerio.load(html);
   const results: SearchResult[] = [];
 
-  $(".result:not(.result--ad)").each((_, element) => {
+  $(".result:not(.result--ad)").each((_, el) => {
     if (results.length >= limit) return false;
-    const root = $(element);
-    const anchor = root.find(".result__a").first();
-    const rawHref = anchor.attr("href");
+    const anchor = $(el).find(".result__a").first();
+    const href = anchor.attr("href");
     const title = cleanText(anchor.text());
-    const resolvedUrl = unwrapDuckDuckGoUrl(rawHref);
-    const snippet = cleanText(root.find(".result__snippet").text());
-    if (!title || !resolvedUrl) return undefined;
-    results.push({ title, url: resolvedUrl, snippet, displayUrl: makeDisplayUrl(resolvedUrl) });
+    const resolved = unwrapDuckDuckGoUrl(href);
+    const snippet = cleanText($(el).find(".result__snippet").text());
+    if (!title || !resolved) return undefined;
+    results.push({ title, url: resolved, snippet, displayUrl: makeDisplayUrl(resolved) });
     return undefined;
   });
 
@@ -170,13 +212,16 @@ async function searchDuckDuckGo(
 async function searchWithFallback(
   query: string,
   limit: number,
+  braveApiKey?: string,
 ): Promise<SearchResult[]> {
-  // 1. SearXNG (most reliable from cloud)
-  try {
-    const results = await searchSearXNG(query, limit);
-    if (results.length > 0) return results;
-  } catch {
-    // fall through
+  // 1. Brave (if key provided) — most reliable
+  if (braveApiKey) {
+    try {
+      const results = await searchBrave(query, limit, braveApiKey);
+      if (results.length > 0) return results;
+    } catch (e) {
+      console.error("[search] Brave failed:", e);
+    }
   }
 
   // 2. Jina AI
@@ -187,7 +232,15 @@ async function searchWithFallback(
     // fall through
   }
 
-  // 3. DuckDuckGo (often blocked but worth trying)
+  // 3. SearXNG
+  try {
+    const results = await searchSearXNG(query, limit);
+    if (results.length > 0) return results;
+  } catch {
+    // fall through
+  }
+
+  // 4. DuckDuckGo (often blocked from datacenters, last resort)
   try {
     return await searchDuckDuckGo(query, limit);
   } catch {
@@ -200,12 +253,13 @@ async function searchWithFallback(
 export async function collectSearchContext(
   query: string,
   mode: "web" | "deep",
+  braveApiKey?: string,
 ): Promise<SearchResult[]> {
   const queries =
     mode === "web" ? [query] : buildResearchQueries(query).slice(0, 4);
 
   const settled = await Promise.allSettled(
-    queries.map((q) => searchWithFallback(q, mode === "web" ? 6 : 4)),
+    queries.map((q) => searchWithFallback(q, mode === "web" ? 6 : 4, braveApiKey)),
   );
 
   const seen = new Set<string>();
@@ -223,13 +277,11 @@ export async function collectSearchContext(
 
   const topResults = merged.slice(0, mode === "web" ? 6 : 10);
 
-  // Enrich top results with Jina reader excerpts in deep mode
+  // Enrich with Jina reader excerpts in deep mode
   if (mode === "deep") {
     const enriched = await Promise.allSettled(
       topResults.slice(0, 5).map(async (item) => {
-        if (!item.excerpt) {
-          item.excerpt = await fetchJinaReader(item.url);
-        }
+        if (!item.excerpt) item.excerpt = await fetchJinaReader(item.url);
         return item;
       }),
     );
@@ -258,7 +310,7 @@ export function formatSearchContext(results: SearchResult[]): string {
     .join("\n\n");
 }
 
-// ── Jina Reader (deep mode excerpts) ─────────────────────────────────────────
+// ── Jina Reader (deep mode page excerpts) ────────────────────────────────────
 
 async function fetchJinaReader(url: string): Promise<string | undefined> {
   try {
