@@ -124,7 +124,7 @@ export async function POST(request: Request) {
             messages: [
               {
                 role: "system",
-                content: buildSystemPrompt(mode.id, searchContext, project),
+                content: buildSystemPrompt(mode.id, mode.model, searchContext, project),
               },
               ...messages,
             ],
@@ -292,12 +292,16 @@ function sanitizeProject(project: ProjectContext | undefined): ProjectContext {
 
 function buildSystemPrompt(
   modeId: string,
+  model: string,
   searchContext: string,
   project: ProjectContext,
 ): string {
   const currentDate = new Date().toISOString().slice(0, 10);
+  const modelLabel =
+    model === "deepseek-v4-pro" ? "DeepSeek V4 Pro" : "DeepSeek V4 Flash";
   const lines = [
     "You are the assistant inside Deepbox, a fast private chat UI powered by DeepSeek.",
+    `You are running on ${modelLabel}. If asked about your model or version, state that you are ${modelLabel}.`,
     "Match the user's language. Be direct, useful, and polished.",
     "Use Markdown when it improves scanability. Keep formatting elegant.",
     `Current date: ${currentDate}.`,
