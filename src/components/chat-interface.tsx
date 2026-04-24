@@ -537,48 +537,54 @@ export function ChatInterface() {
     >
 
       {/* ── Sidebar ── */}
-      <aside className="hidden w-[286px] shrink-0 flex-col border-r border-white/10 bg-[var(--sidebar-bg)] backdrop-blur-2xl lg:flex">
+      <aside className="hidden w-[300px] shrink-0 flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)] lg:flex">
 
         {/* Logo + New Chat */}
-        <div className="flex items-center justify-between px-4 pt-5 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-[linear-gradient(135deg,var(--ctp-mauve),var(--ctp-teal))] text-[var(--ctp-crust)] shadow-[0_8px_24px_rgba(203,166,247,0.28)]">
-              <Sparkles size={15} strokeWidth={2.4} />
-            </div>
-            <span className="text-[16px] font-semibold leading-none tracking-[-0.01em] text-[var(--ctp-text)]">
-              Deepbox
-            </span>
-          </div>
+        <div className="px-3 pb-3 pt-4">
           <button
             type="button"
-            className="icon-button"
+            className="mb-3 flex w-full items-center justify-between rounded-[14px] border border-[var(--hairline)] bg-[var(--elevated)] px-3 py-2.5 text-left text-[13px] font-medium text-[var(--ctp-text)] transition hover:bg-[var(--elevated-hover)]"
             title="Nova conversa"
             aria-label="Nova conversa"
             onClick={createChat}
           >
-            <Plus size={16} />
+            <span className="flex items-center gap-2.5">
+              <span className="grid size-6 place-items-center rounded-[8px] bg-[var(--claude-accent-soft)] text-[var(--claude-accent)]">
+                <Plus size={13} />
+              </span>
+              Nova conversa
+            </span>
+            <span className="text-[11px] text-[var(--ctp-overlay1)]">Ctrl K</span>
           </button>
+          <div className="flex items-center gap-2.5">
+            <div className="grid size-7 shrink-0 place-items-center rounded-[9px] bg-[var(--claude-accent-soft)] text-[var(--claude-accent)]">
+              <Sparkles size={15} strokeWidth={2.4} />
+            </div>
+            <span className="text-[14px] font-semibold leading-none tracking-[-0.01em] text-[var(--ctp-text)]">
+              Deepbox
+            </span>
+          </div>
         </div>
 
-        <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-1.5">
+        <nav className="flex-1 space-y-5 overflow-y-auto px-2.5 py-2">
 
           {/* ── Projects section ── */}
           <section>
-            <div className="mb-1 flex items-center justify-between px-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--ctp-overlay1)]">
+            <div className="mb-1.5 flex items-center justify-between px-2">
+              <p className="text-[11px] font-medium tracking-[-0.01em] text-[var(--ctp-overlay1)]">
                 Projetos
               </p>
               <button
                 type="button"
-                className="grid size-5 place-items-center rounded-[5px] text-[var(--ctp-overlay1)] transition hover:bg-white/10 hover:text-[var(--ctp-text)]"
+                className="grid size-6 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] transition hover:bg-[var(--elevated-hover)] hover:text-[var(--ctp-text)]"
                 title="Novo projeto"
                 aria-label="Novo projeto"
                 onClick={createProject}
               >
-                <Plus size={11} />
+                <Plus size={13} />
               </button>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {projects.filter((p) => p.type === "project").map((project) => {
                 const isProjectActive = project.id === activeProject.id;
                 const isChildActive = activeProject.parentProjectId === project.id;
@@ -592,15 +598,15 @@ export function ChatInterface() {
                   <div key={project.id}>
                     {/* Project header row */}
                     <div
-                      className={`group relative flex items-center rounded-[12px] border transition-all duration-150 ${
+                      className={`group relative flex items-center rounded-[13px] border transition-all duration-150 ${
                         isProjectActive || isChildActive
-                          ? "border-[var(--ctp-mauve)]/25 bg-[var(--ctp-mauve)]/10"
-                          : "border-transparent hover:border-white/7 hover:bg-white/[0.03]"
+                          ? "border-[var(--hairline-strong)] bg-[var(--active-surface)]"
+                          : "border-transparent hover:border-[var(--hairline)] hover:bg-[var(--hover-surface)]"
                       }`}
                     >
                       <button
                         type="button"
-                        className="ml-1 grid size-6 shrink-0 place-items-center rounded-[7px] text-[var(--ctp-overlay1)] transition hover:bg-white/[0.08] hover:text-[var(--ctp-text)]"
+                        className="ml-1 grid size-6 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] transition hover:bg-[var(--elevated-hover)] hover:text-[var(--ctp-text)]"
                         title={isCollapsed ? "Expandir projeto" : "Recolher projeto"}
                         aria-label={isCollapsed ? "Expandir projeto" : "Recolher projeto"}
                         onClick={() => toggleProjectCollapsed(project.id)}
@@ -609,7 +615,7 @@ export function ChatInterface() {
                       </button>
                       <button
                         type="button"
-                        className="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2.5 text-left"
+                        className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2.5 text-left"
                         onClick={() => {
                           // Navigate to most recent project chat, or the project itself
                           if (projectChats.length > 0) {
@@ -622,25 +628,25 @@ export function ChatInterface() {
                         <span
                           className={`flex size-6 shrink-0 items-center justify-center rounded-[7px] transition-colors ${
                             isProjectActive || isChildActive
-                              ? "bg-[var(--ctp-mauve)]/20 text-[var(--ctp-mauve)]"
-                              : "bg-white/[0.06] text-[var(--ctp-overlay1)]"
+                              ? "bg-[var(--claude-accent-soft)] text-[var(--claude-accent)]"
+                              : "bg-[var(--elevated)] text-[var(--ctp-overlay1)]"
                           }`}
                         >
                           <Layers size={12} strokeWidth={2} />
                         </span>
                         <div className="min-w-0 flex-1">
                           <p
-                            className={`truncate text-[13px] leading-5 transition-colors ${
+                            className={`truncate text-[13px] leading-5 tracking-[-0.01em] transition-colors ${
                               isProjectActive || isChildActive
-                                ? "font-semibold text-[var(--ctp-text)]"
+                                ? "font-medium text-[var(--ctp-text)]"
                                 : "text-[var(--ctp-subtext0)]"
                             }`}
                           >
                             {project.name}
                           </p>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-[var(--ctp-overlay1)]">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-[var(--ctp-overlay1)]">
                             {hasInstructions && (
-                              <span className="inline-flex items-center gap-1 whitespace-nowrap text-[var(--ctp-mauve)]/85">
+                              <span className="inline-flex items-center gap-1 whitespace-nowrap text-[var(--claude-accent)]">
                                 <BookOpen size={9} />
                                 instruções
                               </span>
@@ -661,7 +667,7 @@ export function ChatInterface() {
                       <div className="relative mr-1.5">
                         <button
                           type="button"
-                        className="grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] opacity-0 transition hover:bg-white/[0.08] hover:text-[var(--ctp-text)] group-hover:opacity-100"
+                        className="grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] opacity-0 transition hover:bg-[var(--elevated-hover)] hover:text-[var(--ctp-text)] group-hover:opacity-100"
                           title="Ações do projeto"
                           aria-label="Ações do projeto"
                           onClick={(e) => {
@@ -675,12 +681,12 @@ export function ChatInterface() {
                         </button>
                         {projectMenuId === project.id && (
                           <div
-                            className="absolute right-0 top-8 z-20 w-44 rounded-[10px] border border-white/10 bg-[rgba(12,12,18,0.98)] p-1 shadow-[0_12px_28px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+                            className="claude-menu absolute right-0 top-8 z-20 w-48 p-1"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button
                               type="button"
-                              className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-subtext0)] transition hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
+                              className="claude-menu-item"
                               onClick={() => {
                                 createProjectChat(project.id);
                                 closeProjectMenu();
@@ -692,7 +698,7 @@ export function ChatInterface() {
                             </button>
                             <button
                               type="button"
-                              className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-subtext0)] transition hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
+                              className="claude-menu-item"
                               onClick={() => {
                                 setProjectSettingsId(project.id);
                                 closeProjectMenu();
@@ -704,7 +710,7 @@ export function ChatInterface() {
                             </button>
                             <button
                               type="button"
-                              className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-red)]/85 transition hover:bg-[var(--ctp-red)]/10 hover:text-[var(--ctp-red)]"
+                              className="claude-menu-item text-[var(--ctp-red)] hover:bg-[rgba(243,139,168,0.1)] hover:text-[var(--ctp-red)]"
                               onClick={() => {
                                 deleteProject(project.id);
                                 closeProjectMenu();
@@ -722,7 +728,7 @@ export function ChatInterface() {
                     {/* Nested conversations inside this project */}
                     {projectChats.length > 0 && (
                       <div
-                        className={`mt-1 ml-3 overflow-hidden border-l border-white/[0.09] pl-3 transition-all duration-200 ease-out ${
+                        className={`ml-4 mt-1 overflow-hidden border-l border-[var(--hairline)] pl-3 transition-all duration-200 ease-out ${
                           isCollapsed ? "max-h-0 opacity-0" : "max-h-[520px] opacity-100"
                         }`}
                       >
@@ -735,10 +741,10 @@ export function ChatInterface() {
                           return (
                             <div
                               key={chat.id}
-                              className={`group relative flex items-center rounded-[10px] border transition-colors ${
+                              className={`group relative flex items-center rounded-[11px] border transition-colors ${
                                 isChatActive
-                                  ? "border-[var(--ctp-mauve)]/20 bg-[var(--ctp-mauve)]/8"
-                                  : "border-transparent hover:border-white/7 hover:bg-white/[0.03]"
+                                  ? "border-[var(--hairline-strong)] bg-[var(--active-surface)]"
+                                  : "border-transparent hover:border-[var(--hairline)] hover:bg-[var(--hover-surface)]"
                               }`}
                             >
                               <button
@@ -749,7 +755,7 @@ export function ChatInterface() {
                                 <MessageSquare
                                   size={11}
                                   className={`mt-0.5 shrink-0 transition-colors ${
-                                    isChatActive ? "text-[var(--ctp-mauve)]" : "text-[var(--ctp-overlay2)]"
+                                    isChatActive ? "text-[var(--claude-accent)]" : "text-[var(--ctp-overlay2)]"
                                   }`}
                                 />
                                 <div className="min-w-0">
@@ -770,7 +776,7 @@ export function ChatInterface() {
                               <div className="relative mr-1">
                                 <button
                                   type="button"
-                                  className="grid size-6 shrink-0 place-items-center rounded-[6px] text-[var(--ctp-overlay2)] opacity-0 transition hover:bg-white/[0.08] hover:text-[var(--ctp-text)] group-hover:opacity-100"
+                                  className="grid size-6 shrink-0 place-items-center rounded-[7px] text-[var(--ctp-overlay2)] opacity-0 transition hover:bg-[var(--elevated-hover)] hover:text-[var(--ctp-text)] group-hover:opacity-100"
                                   title="Ações da conversa"
                                   aria-label="Ações da conversa"
                                   onClick={(e) => {
@@ -782,12 +788,12 @@ export function ChatInterface() {
                                 </button>
                                 {chatMenuId === chat.id && (
                                   <div
-                                    className="absolute right-0 top-7 z-20 w-44 rounded-[10px] border border-white/10 bg-[rgba(12,12,18,0.98)] p-1 shadow-[0_12px_28px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+                                    className="claude-menu absolute right-0 top-7 z-20 w-48 p-1"
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     <button
                                       type="button"
-                                      className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-subtext0)] transition hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
+                                      className="claude-menu-item"
                                       onClick={() => {
                                         renameChat(chat.id);
                                         closeChatMenu();
@@ -798,7 +804,7 @@ export function ChatInterface() {
                                     </button>
                                     <button
                                       type="button"
-                                      className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-subtext0)] transition hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
+                                      className="claude-menu-item"
                                       onClick={() => {
                                         moveChat(chat.id, undefined);
                                         closeChatMenu();
@@ -812,7 +818,7 @@ export function ChatInterface() {
                               </div>
                               <button
                                 type="button"
-                                className="mr-1 grid size-6 shrink-0 place-items-center rounded-[6px] text-[var(--ctp-overlay2)] opacity-0 transition hover:bg-[var(--ctp-red)]/15 hover:text-[var(--ctp-red)] group-hover:opacity-100"
+                                className="mr-1 grid size-6 shrink-0 place-items-center rounded-[7px] text-[var(--ctp-overlay2)] opacity-0 transition hover:bg-[rgba(243,139,168,0.12)] hover:text-[var(--ctp-red)] group-hover:opacity-100"
                                 title="Excluir conversa"
                                 aria-label="Excluir conversa"
                                 onClick={() => deleteProject(chat.id)}
@@ -830,7 +836,7 @@ export function ChatInterface() {
                       <div className="ml-6 mt-1">
                         <button
                           type="button"
-                          className="flex items-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[11px] text-[var(--ctp-overlay1)] transition hover:text-[var(--ctp-subtext0)]"
+                          className="flex items-center gap-1.5 rounded-[9px] px-2 py-1.5 text-[11px] text-[var(--ctp-overlay1)] transition hover:bg-[var(--hover-surface)] hover:text-[var(--ctp-subtext0)]"
                           onClick={() => createProjectChat(project.id)}
                         >
                           <Plus size={10} />
@@ -851,12 +857,12 @@ export function ChatInterface() {
 
           {/* ── Conversations section ── */}
           <section>
-            <div className="mb-1 px-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--ctp-overlay1)]">
+            <div className="mb-1.5 px-2">
+              <p className="text-[11px] font-medium tracking-[-0.01em] text-[var(--ctp-overlay1)]">
                 Conversas
               </p>
             </div>
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {standaloneChats.map((project) => {
                 const lastUserMsg = [...project.messages]
                   .reverse()
@@ -865,10 +871,10 @@ export function ChatInterface() {
                 return (
                   <div
                     key={project.id}
-                    className={`group relative flex items-center rounded-[12px] border transition-all duration-150 ${
+                    className={`group relative flex items-center rounded-[13px] border transition-all duration-150 ${
                       isActive
-                        ? "border-[var(--ctp-blue)]/22 bg-[var(--ctp-blue)]/9 shadow-[0_6px_18px_rgba(137,180,250,0.1)]"
-                        : "border-transparent hover:border-white/7 hover:bg-white/[0.03]"
+                        ? "border-[var(--hairline-strong)] bg-[var(--active-surface)]"
+                        : "border-transparent hover:border-[var(--hairline)] hover:bg-[var(--hover-surface)]"
                     }`}
                   >
                     <button
@@ -880,7 +886,7 @@ export function ChatInterface() {
                         size={13}
                         className={`mt-0.5 shrink-0 transition-colors ${
                           isActive
-                            ? "text-[var(--ctp-blue)]"
+                            ? "text-[var(--claude-accent)]"
                             : "text-[var(--ctp-overlay1)]"
                         }`}
                       />
@@ -908,7 +914,7 @@ export function ChatInterface() {
                     <div className="relative mr-1.5">
                       <button
                         type="button"
-                        className="grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] opacity-0 transition hover:bg-white/[0.08] hover:text-[var(--ctp-text)] group-hover:opacity-100"
+                        className="grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] opacity-0 transition hover:bg-[var(--elevated-hover)] hover:text-[var(--ctp-text)] group-hover:opacity-100"
                         title="Ações da conversa"
                         aria-label="Ações da conversa"
                         onClick={(e) => {
@@ -920,12 +926,12 @@ export function ChatInterface() {
                       </button>
                       {chatMenuId === project.id && (
                         <div
-                          className="absolute right-0 top-8 z-20 w-44 rounded-[10px] border border-white/10 bg-[rgba(12,12,18,0.98)] p-1 shadow-[0_12px_28px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+                          className="claude-menu absolute right-0 top-8 z-20 w-48 p-1"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
                             type="button"
-                            className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-subtext0)] transition hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
+                            className="claude-menu-item"
                             onClick={() => {
                               renameChat(project.id);
                               closeChatMenu();
@@ -935,7 +941,7 @@ export function ChatInterface() {
                             Renomear
                           </button>
                           {projects.filter((p) => p.type === "project").length > 0 && (
-                            <div className="my-1 border-t border-white/8" />
+                            <div className="my-1 border-t border-[var(--hairline)]" />
                           )}
                           {projects
                             .filter((p) => p.type === "project")
@@ -944,7 +950,7 @@ export function ChatInterface() {
                               <button
                                 key={target.id}
                                 type="button"
-                                className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-subtext0)] transition hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
+                                className="claude-menu-item"
                                 onClick={() => {
                                   moveChat(project.id, target.id);
                                   closeChatMenu();
@@ -956,7 +962,7 @@ export function ChatInterface() {
                             ))}
                           <button
                             type="button"
-                            className="mt-1 flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-red)]/85 transition hover:bg-[var(--ctp-red)]/10 hover:text-[var(--ctp-red)]"
+                            className="claude-menu-item mt-1 text-[var(--ctp-red)] hover:bg-[rgba(243,139,168,0.1)] hover:text-[var(--ctp-red)]"
                             onClick={() => {
                               deleteProject(project.id);
                               closeChatMenu();
@@ -981,10 +987,10 @@ export function ChatInterface() {
         </nav>
 
         {/* Bottom: Settings */}
-        <div className="border-t border-white/10 px-2 py-3">
+        <div className="border-t border-[var(--sidebar-border)] px-2.5 py-3">
           <button
             type="button"
-            className="relative flex w-full items-center gap-2.5 rounded-[12px] border border-transparent px-3 py-2.5 text-sm text-[var(--ctp-subtext0)] transition hover:border-white/8 hover:bg-white/[0.04] hover:text-[var(--ctp-text)]"
+            className="relative flex w-full items-center gap-2.5 rounded-[13px] border border-transparent px-3 py-2.5 text-[13px] text-[var(--ctp-subtext0)] transition hover:border-[var(--hairline)] hover:bg-[var(--hover-surface)] hover:text-[var(--ctp-text)]"
             onClick={() => setShowSettings(true)}
           >
             <Settings size={15} />
@@ -1000,25 +1006,25 @@ export function ChatInterface() {
       </aside>
 
       {/* ── Main ── */}
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.08] bg-[rgba(9,9,14,0.9)] px-4 backdrop-blur-2xl sm:px-6">
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--app-bg)]">
+        <header className="flex h-[58px] shrink-0 items-center justify-between border-b border-[var(--hairline)] bg-[var(--topbar-bg)] px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="grid size-8 place-items-center rounded-[10px] border border-white/[0.08] bg-white/[0.04] lg:hidden">
+            <div className="grid size-8 place-items-center rounded-[10px] border border-[var(--hairline)] bg-[var(--elevated)] lg:hidden">
               <Sparkles size={15} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="truncate text-[15px] font-semibold leading-tight tracking-[-0.01em]">
+                <p className="truncate text-[15px] font-medium leading-tight tracking-[-0.01em]">
                   {activeProject.name}
                 </p>
                 {activeProject.type === "project" && !activeProject.parentProjectId && (
-                  <span className="hidden shrink-0 items-center gap-1 rounded-[5px] border border-[var(--ctp-mauve)]/30 bg-[var(--ctp-mauve)]/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--ctp-mauve)] sm:inline-flex">
+                  <span className="hidden shrink-0 items-center gap-1 rounded-[6px] border border-[var(--hairline)] bg-[var(--elevated)] px-1.5 py-0.5 text-[10px] font-medium tracking-[-0.01em] text-[var(--claude-accent)] sm:inline-flex">
                     <Layers size={9} strokeWidth={2.5} />
                     Projeto
                   </span>
                 )}
               </div>
-              <p className="truncate text-xs text-[var(--ctp-subtext0)]">
+              <p className="truncate text-[11px] text-[var(--ctp-overlay1)]">
                 {activeProject.parentProjectId && (() => {
                   const parent = projects.find((p) => p.id === activeProject.parentProjectId);
                   return parent ? <><Layers size={10} className="inline mr-1 opacity-60" />{parent.name} · </> : null;
@@ -1031,7 +1037,7 @@ export function ChatInterface() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="icon-button lg:hidden"
+              className="icon-button icon-button-muted lg:hidden"
               title="Nova conversa"
               aria-label="Nova conversa"
               onClick={createProject}
@@ -1040,7 +1046,7 @@ export function ChatInterface() {
             </button>
             <button
               type="button"
-              className="icon-button"
+              className="icon-button icon-button-muted"
               title="Configurações do projeto"
               aria-label="Configurações do projeto"
               onClick={() => setProjectSettingsId(activeProject.id)}
@@ -1049,7 +1055,7 @@ export function ChatInterface() {
             </button>
             <button
               type="button"
-              className="icon-button"
+              className="icon-button icon-button-muted"
               title="Limpar conversa"
               aria-label="Limpar conversa"
               onClick={clearChat}
@@ -1060,9 +1066,9 @@ export function ChatInterface() {
         </header>
 
         <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_22%_8%,rgba(137,180,250,0.12),transparent_28%),radial-gradient(circle_at_72%_4%,rgba(148,226,213,0.10),transparent_26%)]" />
-          <div ref={scrollContainerRef} className="relative min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-8 sm:px-6">
-            <div className="mx-auto flex w-full max-w-4xl flex-col gap-7">
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,var(--app-bg),var(--app-bg-soft)_42%,var(--app-bg))]" />
+          <div ref={scrollContainerRef} className="relative min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-8 sm:px-8">
+            <div className="mx-auto flex w-full max-w-[820px] flex-col gap-8">
               {messages.length === 0 ? (
                 <EmptyState onPickPrompt={setInput} />
               ) : (
@@ -1082,7 +1088,7 @@ export function ChatInterface() {
                 ))
               )}
               {status ? (
-                <div className="status-enter flex items-center gap-3 pl-1 text-sm text-[var(--ctp-subtext0)]">
+                <div className="status-enter flex items-center gap-3 pl-1 text-[13px] text-[var(--ctp-subtext0)]">
                   <span className="thinking-dot" />
                   <span>{status}</span>
                 </div>
@@ -1091,10 +1097,10 @@ export function ChatInterface() {
             </div>
           </div>
 
-          <div className="relative shrink-0 px-3 pb-4 sm:px-6 sm:pb-6">
+          <div className="relative shrink-0 px-3 pb-4 sm:px-8 sm:pb-6">
             <form
               onSubmit={submitMessage}
-              className="mx-auto w-full max-w-4xl rounded-[22px] border border-white/[0.09] bg-[rgba(11,11,17,0.96)] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.6)] backdrop-blur-2xl"
+              className="mx-auto w-full max-w-[820px] rounded-[24px] border border-[var(--composer-border)] bg-[var(--composer-bg)] p-2 shadow-[0_18px_60px_rgba(0,0,0,0.34)]"
             >
               {modules.length > 0 ? (
                 <div className="grid gap-2 p-2 sm:grid-cols-2">
@@ -1126,7 +1132,7 @@ export function ChatInterface() {
                 className="max-h-[220px] min-h-16 w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-7 text-[var(--ctp-text)] outline-none placeholder:text-[var(--ctp-overlay1)]"
               />
 
-              <div className="flex flex-col gap-3 border-t border-white/10 px-2 pb-1 pt-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 border-t border-[var(--hairline)] px-2 pb-1 pt-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {/* Thinking row (radio) */}
                   {THINKING_MODES.map((mode) => {
@@ -1150,7 +1156,7 @@ export function ChatInterface() {
                     );
                   })}
 
-                  <span className="mx-0.5 text-[var(--ctp-overlay2)] select-none">·</span>
+                  <span className="mx-0.5 select-none text-[var(--ctp-overlay2)]">·</span>
 
                   {/* Search row (toggle) */}
                   {SEARCH_MODES.map((mode) => {
@@ -1279,7 +1285,7 @@ function ProjectSettingsModal({
       <div className="modal-panel">
         <div className="modal-header">
           <div className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-[8px] bg-[var(--ctp-mauve)]/15 text-[var(--ctp-mauve)]">
+            <span className="flex size-7 items-center justify-center rounded-[8px] bg-[var(--claude-accent-soft)] text-[var(--claude-accent)]">
               <Layers size={13} strokeWidth={2} />
             </span>
             <h2 className="text-base font-semibold text-[var(--ctp-text)]">
@@ -1474,7 +1480,7 @@ function SettingsModal({
                 href="https://platform.deepseek.com"
                 target="_blank"
                 rel="noreferrer"
-                className="text-[var(--ctp-blue)] underline underline-offset-2"
+                className="text-[var(--claude-accent)] underline underline-offset-2"
               >
                 platform.deepseek.com
               </a>
@@ -1505,19 +1511,19 @@ function EmptyState({
   onPickPrompt: (prompt: string) => void;
 }) {
   return (
-    <div className="mx-auto flex min-h-[42vh] w-full max-w-2xl flex-col justify-center">
-      <p className="text-[32px] font-semibold leading-tight tracking-[-0.02em] text-[var(--ctp-text)] sm:text-[40px]">
+    <div className="mx-auto flex min-h-[45vh] w-full max-w-2xl flex-col justify-center">
+      <p className="font-serif text-[34px] font-medium leading-tight tracking-[-0.025em] text-[var(--ctp-text)] sm:text-[44px]">
         O que vamos pensar hoje?
       </p>
-      <p className="mt-2 text-[15px] text-[var(--ctp-overlay1)]">
+      <p className="mt-3 max-w-lg text-[14px] leading-6 text-[var(--ctp-subtext0)]">
         Selecione um modo e comece a conversar.
       </p>
-      <div className="mt-7 flex flex-wrap gap-2">
+      <div className="mt-8 grid gap-2 sm:grid-cols-3">
         {starterPrompts.map((prompt) => (
           <button
             key={prompt}
             type="button"
-            className="rounded-[10px] border border-white/[0.08] bg-white/[0.03] px-4 py-2 text-left text-[13px] text-[var(--ctp-subtext0)] transition hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
+            className="rounded-[14px] border border-[var(--hairline)] bg-[var(--elevated)] px-4 py-3 text-left text-[12px] leading-5 text-[var(--ctp-subtext0)] transition hover:border-[var(--hairline-strong)] hover:bg-[var(--elevated-hover)] hover:text-[var(--ctp-text)]"
             onClick={() => onPickPrompt(prompt)}
           >
             {prompt}
@@ -1563,14 +1569,14 @@ function MessageBubble({
 
   return (
     <article
-      className={`message-enter group flex gap-4 ${
+      className={`message-enter group flex gap-3.5 ${
         isUser ? "justify-end" : "justify-start"
       }`}
     >
       {!isUser ? (
         <div
-          className={`mt-0.5 grid size-7 shrink-0 place-items-center rounded-[9px] bg-[linear-gradient(135deg,var(--ctp-mauve),var(--ctp-blue))] text-white ${
-            isLive ? "avatar-live" : "shadow-[0_6px_20px_rgba(137,180,250,0.22)]"
+          className={`mt-1 grid size-7 shrink-0 place-items-center rounded-[9px] bg-[var(--claude-accent-soft)] text-[var(--claude-accent)] ${
+            isLive ? "avatar-live" : ""
           }`}
         >
           <Sparkles size={14} />
@@ -1580,8 +1586,8 @@ function MessageBubble({
       <div
         className={`min-w-0 ${
           isUser
-            ? "max-w-[min(680px,90%)] rounded-[16px] border border-white/[0.08] bg-[rgba(18,18,26,0.95)] px-5 py-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
-            : "w-full max-w-3xl"
+            ? "max-w-[min(640px,88%)] rounded-[18px] border border-[var(--hairline)] bg-[var(--user-bubble)] px-5 py-3.5 shadow-[0_8px_22px_rgba(0,0,0,0.22)]"
+            : "w-full max-w-[740px]"
         }`}
       >
         {message.modules?.length ? (
@@ -1593,11 +1599,11 @@ function MessageBubble({
         ) : null}
 
         {message.reasoning ? (
-          <details className="mb-4 rounded-[12px] border border-[var(--ctp-mauve)]/15 bg-[rgba(14,14,22,0.7)] p-3 text-sm text-[var(--ctp-subtext0)]">
-            <summary className="cursor-pointer select-none font-medium text-[var(--ctp-mauve)]">
+          <details className="mb-4 rounded-[14px] border border-[var(--hairline)] bg-[var(--elevated)] p-3 text-[13px] text-[var(--ctp-subtext0)]">
+            <summary className="cursor-pointer select-none font-medium text-[var(--claude-accent)]">
               Raciocinio
             </summary>
-            <p className="mt-3 whitespace-pre-wrap font-serif leading-7">
+            <p className="mt-3 whitespace-pre-wrap font-serif leading-7 text-[var(--ctp-subtext1)]">
               {message.reasoning}
             </p>
           </details>
@@ -1608,7 +1614,7 @@ function MessageBubble({
             className={`markdown-body ${
               isUser
                 ? "text-[15px] leading-[1.65]"
-                : "font-serif text-[17px] leading-[1.78] tracking-[0.003em]"
+                : "font-serif text-[17.25px] leading-[1.76] tracking-[0.002em]"
             }`}
           >
             <ReactMarkdown
@@ -1627,7 +1633,7 @@ function MessageBubble({
         ) : null}
 
         {message.error ? (
-          <div className="mt-3 rounded-[14px] border border-[var(--ctp-red)]/30 bg-[var(--ctp-red)]/10 px-4 py-3 text-sm text-[var(--ctp-red)]">
+          <div className="mt-3 rounded-[14px] border border-[rgba(243,139,168,0.25)] bg-[rgba(243,139,168,0.08)] px-4 py-3 text-sm text-[var(--ctp-red)]">
             {message.error}
           </div>
         ) : null}
@@ -1637,7 +1643,7 @@ function MessageBubble({
         ) : null}
 
         {isStreamingArtifact && (
-          <div className="mt-3 flex items-center gap-2 text-[13px] text-[var(--ctp-mauve)]/70">
+          <div className="mt-3 flex items-center gap-2 text-[13px] text-[var(--claude-accent)]">
             <FileText size={13} />
             <span>Gerando documento</span>
             <span className="streaming-cursor" />
@@ -1691,7 +1697,7 @@ function MessageBubble({
               <span>{copied ? "Copiado" : "Copiar"}</span>
             </button>
             {message.mode ? (
-              <span className="rounded-full border border-white/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-[var(--ctp-overlay1)]">
+              <span className="rounded-full border border-[var(--hairline)] px-2.5 py-1 text-[10px] tracking-[0.08em] text-[var(--ctp-overlay1)]">
                 {message.mode}
               </span>
             ) : null}
@@ -1832,14 +1838,14 @@ function ProjectMemoryRow({
   onRemove: () => void;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-2 rounded-[12px] border border-[var(--ctp-teal)]/15 bg-[var(--ctp-teal)]/8 px-2.5 py-2">
-      <FileText size={13} className="shrink-0 text-[var(--ctp-teal)]" />
+    <div className="flex min-w-0 items-center gap-2 rounded-[12px] border border-[var(--hairline)] bg-[var(--elevated)] px-2.5 py-2">
+      <FileText size={13} className="shrink-0 text-[var(--claude-accent)]" />
       <span className="min-w-0 flex-1 truncate text-xs text-[var(--ctp-subtext1)]">
         {module.title}
       </span>
       <button
         type="button"
-        className="grid size-6 shrink-0 place-items-center rounded-full text-[var(--ctp-overlay2)] transition hover:bg-white/10 hover:text-[var(--ctp-text)]"
+        className="grid size-6 shrink-0 place-items-center rounded-full text-[var(--ctp-overlay2)] transition hover:bg-[var(--elevated-hover)] hover:text-[var(--ctp-text)]"
         title="Remover memoria"
         aria-label="Remover memoria"
         onClick={onRemove}
@@ -1864,8 +1870,8 @@ function TextModuleChip({
   canPin?: boolean;
 }) {
   return (
-    <div className="group flex min-w-0 items-start gap-3 rounded-[16px] border border-[var(--ctp-teal)]/20 bg-[var(--ctp-teal)]/8 p-3">
-      <div className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-[var(--ctp-teal)]/14 text-[var(--ctp-teal)]">
+    <div className="group flex min-w-0 items-start gap-3 rounded-[16px] border border-[var(--hairline)] bg-[var(--elevated)] p-3">
+      <div className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-[var(--claude-accent-soft)] text-[var(--claude-accent)]">
         <FileText size={17} />
       </div>
       <div className="min-w-0 flex-1">
@@ -1883,7 +1889,7 @@ function TextModuleChip({
         {canPin && (
         <button
           type="button"
-          className="grid size-7 place-items-center rounded-full text-[var(--ctp-teal)] transition hover:bg-white/10 hover:text-[var(--ctp-text)]"
+          className="grid size-7 place-items-center rounded-full text-[var(--claude-accent)] transition hover:bg-[var(--elevated-hover)] hover:text-[var(--ctp-text)]"
           title="Salvar no projeto"
           aria-label="Salvar no projeto"
           onClick={onPin}
@@ -1893,7 +1899,7 @@ function TextModuleChip({
         )}
         <button
           type="button"
-          className="grid size-7 place-items-center rounded-full text-[var(--ctp-overlay2)] transition hover:bg-white/10 hover:text-[var(--ctp-text)]"
+          className="grid size-7 place-items-center rounded-full text-[var(--ctp-overlay2)] transition hover:bg-[var(--elevated-hover)] hover:text-[var(--ctp-text)]"
           title="Remover modulo"
           aria-label="Remover modulo"
           onClick={onRemove}
@@ -1909,8 +1915,8 @@ function TextModuleChip({
 
 function AttachedModule({ module }: { module: TextModule }) {
   return (
-    <div className="rounded-[15px] border border-[var(--ctp-teal)]/20 bg-[var(--ctp-teal)]/8 p-3">
-      <div className="flex items-center gap-2 text-sm font-medium text-[var(--ctp-teal)]">
+    <div className="rounded-[15px] border border-[var(--hairline)] bg-[var(--elevated)] p-3">
+      <div className="flex items-center gap-2 text-sm font-medium text-[var(--claude-accent)]">
         <FileText size={15} />
         <span className="truncate">{module.title}</span>
       </div>
@@ -1932,7 +1938,7 @@ function SourceList({ sources }: { sources: SearchResult[] }) {
           href={source.url}
           target="_blank"
           rel="noreferrer"
-          className="max-w-full rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 text-xs text-[var(--ctp-subtext0)] transition hover:border-[var(--ctp-blue)]/40 hover:text-[var(--ctp-text)]"
+          className="max-w-full rounded-full border border-[var(--hairline)] bg-[var(--elevated)] px-3 py-1.5 text-xs text-[var(--ctp-subtext0)] transition hover:border-[var(--hairline-strong)] hover:bg-[var(--elevated-hover)] hover:text-[var(--ctp-text)]"
           title={source.title}
         >
           [{index + 1}] {source.displayUrl}
