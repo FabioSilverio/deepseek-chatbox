@@ -107,8 +107,7 @@ export async function POST(request: Request) {
               type: "status",
               message: "Busca web não retornou resultados — respondendo com conhecimento próprio.",
             });
-            // Tell the AI search was attempted but returned nothing
-            searchContext = `Web search was attempted for this query but returned no results. Answer from your training knowledge and be transparent about it.`;
+            // Leave searchContext empty: the AI responds normally without meta-commentary
           }
         }
 

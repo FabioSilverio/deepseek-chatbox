@@ -84,6 +84,8 @@ type Project = {
   memoryModules: TextModule[];
   messages: ChatMessage[];
   modeConfig: ModeConfig;
+  /** Set when this chat belongs to a project */
+  parentProjectId?: string;
 };
 
 type StreamEvent =
@@ -183,7 +185,7 @@ export function ChatInterface() {
   useEffect(() => {
     if (isStreaming) return;
     const project = activeProject;
-    if (project.type !== "chat") return;
+    if (project.type !== "chat" && !project.parentProjectId) return;
     if (titledProjectsRef.current.has(project.id)) return;
 
     const userMsgs = project.messages.filter((m) => m.role === "user");
@@ -236,7 +238,7 @@ export function ChatInterface() {
     const assistantId = createId();
     // Auto-name conversations on first user message
     if (
-      activeProject.type === "chat" &&
+      (activeProject.type === "chat" || activeProject.parentProjectId) &&
       activeProject.name === "Nova conversa" &&
       activeProject.messages.length === 0
     ) {
@@ -275,14 +277,17 @@ export function ChatInterface() {
         body: JSON.stringify({
           combo: modeConfig,
           messages: nextMessages.map(toApiMessage),
-          project: {
-            name: activeProject.name,
-            instructions: activeProject.instructions,
-            modules: activeProject.memoryModules.map((m) => ({
-              title: m.title,
-              content: m.content,
-            })),
-          },
+          project: (() => {
+            // For project chats, use parent project's instructions/modules
+            const ctx = activeProject.parentProjectId
+              ? (projects.find((p) => p.id === activeProject.parentProjectId) ?? activeProject)
+              : activeProject;
+            return {
+              name: ctx.name,
+              instructions: ctx.instructions,
+              modules: ctx.memoryModules.map((m) => ({ title: m.title, content: m.content })),
+            };
+          })(),
         }),
         signal: controller.signal,
       });
@@ -406,11 +411,33 @@ export function ChatInterface() {
     setInput("");
   }
 
+  function createProjectChat(projectId: string) {
+    const parentProject = projects.find((p) => p.id === projectId);
+    const newChat: Project = {
+      id: createId(),
+      type: "chat",
+      name: "Nova conversa",
+      description: "",
+      instructions: "",
+      memoryModules: [],
+      messages: [],
+      modeConfig: parentProject ? { ...parentProject.modeConfig } : { ...DEFAULT_MODE_CONFIG },
+      parentProjectId: projectId,
+    };
+    setProjects((current) => [...current, newChat]);
+    setActiveProjectId(newChat.id);
+    setModules([]);
+    setInput("");
+  }
+
   function deleteProject(id: string) {
-    const remaining = projects.filter((p) => p.id !== id);
+    // Also remove chats that belong to this project
+    const remaining = projects.filter((p) => p.id !== id && p.parentProjectId !== id);
     const nextProjects = remaining.length > 0 ? remaining : [createDefaultProject()];
     setProjects(nextProjects);
-    if (activeProjectId === id) setActiveProjectId(nextProjects[0].id);
+    if (activeProjectId === id || projects.find((p) => p.id === activeProjectId)?.parentProjectId === id) {
+      setActiveProjectId(nextProjects[0].id);
+    }
     setModules([]);
   }
 
@@ -499,73 +526,159 @@ export function ChatInterface() {
                 <Plus size={11} />
               </button>
             </div>
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {projects.filter((p) => p.type === "project").map((project) => {
-                const isActive = project.id === activeProject.id;
+                const isProjectActive = project.id === activeProject.id;
+                const isChildActive = activeProject.parentProjectId === project.id;
                 const hasInstructions = !!project.instructions?.trim();
                 const moduleCount = project.memoryModules?.length ?? 0;
+                const projectChats = projects.filter(
+                  (p) => p.type === "chat" && p.parentProjectId === project.id,
+                );
                 return (
-                  <div
-                    key={project.id}
-                    className={`group relative flex items-center rounded-[12px] border transition-colors ${
-                      isActive
-                        ? "border-[var(--ctp-mauve)]/25 bg-[var(--ctp-mauve)]/10"
-                        : "border-transparent hover:border-white/8 hover:bg-white/[0.04]"
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left"
-                      onClick={() => setActiveProjectId(project.id)}
+                  <div key={project.id}>
+                    {/* Project header row */}
+                    <div
+                      className={`group relative flex items-center rounded-[12px] border transition-colors ${
+                        isProjectActive || isChildActive
+                          ? "border-[var(--ctp-mauve)]/25 bg-[var(--ctp-mauve)]/10"
+                          : "border-transparent hover:border-white/8 hover:bg-white/[0.04]"
+                      }`}
                     >
-                      <span
-                        className={`flex size-6 shrink-0 items-center justify-center rounded-[7px] transition-colors ${
-                          isActive
-                            ? "bg-[var(--ctp-mauve)]/20 text-[var(--ctp-mauve)]"
-                            : "bg-white/[0.06] text-[var(--ctp-overlay1)]"
-                        }`}
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left"
+                        onClick={() => {
+                          // Navigate to most recent project chat, or the project itself
+                          if (projectChats.length > 0) {
+                            setActiveProjectId(projectChats[projectChats.length - 1].id);
+                          } else {
+                            setActiveProjectId(project.id);
+                          }
+                        }}
                       >
-                        <Layers size={12} strokeWidth={2} />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={`truncate text-[13px] leading-5 transition-colors ${
-                            isActive
-                              ? "font-semibold text-[var(--ctp-text)]"
-                              : "text-[var(--ctp-subtext0)]"
+                        <span
+                          className={`flex size-6 shrink-0 items-center justify-center rounded-[7px] transition-colors ${
+                            isProjectActive || isChildActive
+                              ? "bg-[var(--ctp-mauve)]/20 text-[var(--ctp-mauve)]"
+                              : "bg-white/[0.06] text-[var(--ctp-overlay1)]"
                           }`}
                         >
-                          {project.name}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          {hasInstructions && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] text-[var(--ctp-mauve)]/70">
-                              <BookOpen size={9} />
-                              instruções
-                            </span>
-                          )}
-                          {moduleCount > 0 && (
-                            <span className="text-[10px] text-[var(--ctp-overlay1)]">
-                              {moduleCount} módulo{moduleCount > 1 ? "s" : ""}
-                            </span>
-                          )}
-                          {!hasInstructions && moduleCount === 0 && (
-                            <p className="text-[11px] leading-4 text-[var(--ctp-overlay2)] italic">
-                              {project.description || "Sem configuração"}
-                            </p>
-                          )}
+                          <Layers size={12} strokeWidth={2} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={`truncate text-[13px] leading-5 transition-colors ${
+                              isProjectActive || isChildActive
+                                ? "font-semibold text-[var(--ctp-text)]"
+                                : "text-[var(--ctp-subtext0)]"
+                            }`}
+                          >
+                            {project.name}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {hasInstructions && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] text-[var(--ctp-mauve)]/70">
+                                <BookOpen size={9} />
+                                instruções
+                              </span>
+                            )}
+                            {moduleCount > 0 && (
+                              <span className="text-[10px] text-[var(--ctp-overlay1)]">
+                                {moduleCount} módulo{moduleCount > 1 ? "s" : ""}
+                              </span>
+                            )}
+                            {projectChats.length > 0 && (
+                              <span className="text-[10px] text-[var(--ctp-overlay1)]">
+                                {projectChats.length} conversa{projectChats.length > 1 ? "s" : ""}
+                              </span>
+                            )}
+                          </div>
                         </div>
+                      </button>
+                      {/* New chat in project */}
+                      <button
+                        type="button"
+                        className="grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] opacity-0 transition hover:bg-white/10 hover:text-[var(--ctp-text)] group-hover:opacity-100"
+                        title="Nova conversa no projeto"
+                        aria-label="Nova conversa no projeto"
+                        onClick={() => createProjectChat(project.id)}
+                      >
+                        <Plus size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        className="mr-2 grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] opacity-0 transition hover:bg-white/10 hover:text-[var(--ctp-text)] group-hover:opacity-100"
+                        title="Configurações do projeto"
+                        aria-label="Configurações do projeto"
+                        onClick={() => setProjectSettingsId(project.id)}
+                      >
+                        <Settings size={12} />
+                      </button>
+                    </div>
+
+                    {/* Nested conversations inside this project */}
+                    {projectChats.length > 0 && (
+                      <div className="mt-0.5 ml-3 space-y-0.5 border-l border-white/[0.07] pl-3">
+                        {projectChats.map((chat) => {
+                          const isChatActive = chat.id === activeProject.id;
+                          return (
+                            <div
+                              key={chat.id}
+                              className={`group relative flex items-center rounded-[10px] border transition-colors ${
+                                isChatActive
+                                  ? "border-[var(--ctp-mauve)]/20 bg-[var(--ctp-mauve)]/8"
+                                  : "border-transparent hover:border-white/8 hover:bg-white/[0.04]"
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                className="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left"
+                                onClick={() => setActiveProjectId(chat.id)}
+                              >
+                                <MessageSquare
+                                  size={11}
+                                  className={`shrink-0 transition-colors ${
+                                    isChatActive ? "text-[var(--ctp-mauve)]" : "text-[var(--ctp-overlay2)]"
+                                  }`}
+                                />
+                                <p
+                                  className={`truncate text-[12px] leading-5 transition-colors ${
+                                    isChatActive
+                                      ? "font-medium text-[var(--ctp-text)]"
+                                      : "text-[var(--ctp-subtext0)]"
+                                  }`}
+                                >
+                                  {chat.name}
+                                </p>
+                              </button>
+                              <button
+                                type="button"
+                                className="mr-1.5 grid size-6 shrink-0 place-items-center rounded-[6px] text-[var(--ctp-overlay2)] opacity-0 transition hover:bg-[var(--ctp-red)]/15 hover:text-[var(--ctp-red)] group-hover:opacity-100"
+                                title="Excluir conversa"
+                                aria-label="Excluir conversa"
+                                onClick={() => deleteProject(chat.id)}
+                              >
+                                <X size={11} />
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
-                    </button>
-                    <button
-                      type="button"
-                      className="mr-2 grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] opacity-0 transition hover:bg-white/10 hover:text-[var(--ctp-text)] group-hover:opacity-100"
-                      title="Configurações do projeto"
-                      aria-label="Configurações do projeto"
-                      onClick={() => setProjectSettingsId(project.id)}
-                    >
-                      <Settings size={12} />
-                    </button>
+                    )}
+                    {/* Empty state — prompt to create first conversation */}
+                    {projectChats.length === 0 && isProjectActive && (
+                      <div className="ml-6 mt-1">
+                        <button
+                          type="button"
+                          className="flex items-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[11px] text-[var(--ctp-overlay1)] transition hover:text-[var(--ctp-subtext0)]"
+                          onClick={() => createProjectChat(project.id)}
+                        >
+                          <Plus size={10} />
+                          Nova conversa
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -686,7 +799,7 @@ export function ChatInterface() {
                 <p className="truncate text-[15px] font-semibold leading-tight tracking-[-0.01em]">
                   {activeProject.name}
                 </p>
-                {activeProject.type === "project" && (
+                {activeProject.type === "project" && !activeProject.parentProjectId && (
                   <span className="hidden shrink-0 items-center gap-1 rounded-[5px] border border-[var(--ctp-mauve)]/30 bg-[var(--ctp-mauve)]/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--ctp-mauve)] sm:inline-flex">
                     <Layers size={9} strokeWidth={2.5} />
                     Projeto
@@ -694,6 +807,10 @@ export function ChatInterface() {
                 )}
               </div>
               <p className="truncate text-xs text-[var(--ctp-subtext0)]">
+                {activeProject.parentProjectId && (() => {
+                  const parent = projects.find((p) => p.id === activeProject.parentProjectId);
+                  return parent ? <><Layers size={10} className="inline mr-1 opacity-60" />{parent.name} · </> : null;
+                })()}
                 {activeMode.label} · {activeMode.model}
               </p>
             </div>
@@ -1279,7 +1396,7 @@ function MessageBubble({
             className={`markdown-body ${
               isUser
                 ? "text-[15px] leading-[1.65]"
-                : "font-serif text-[17.5px]"
+                : "font-serif text-[17px] leading-[1.78] tracking-[0.003em]"
             }`}
           >
             <ReactMarkdown
@@ -1789,25 +1906,13 @@ function createDefaultProject(messages: ChatMessage[] = []): Project {
 }
 
 function normalizeProject(project: Partial<Project>): Project {
-  const hasCustomization =
-    (typeof project.instructions === "string" && project.instructions.trim()) ||
-    (Array.isArray(project.memoryModules) && project.memoryModules.length > 0);
   return {
     id: typeof project.id === "string" ? project.id : createId(),
-    type:
-      project.type === "chat" || project.type === "project"
-        ? project.type
-        : hasCustomization
-          ? "project"
-          : "project",
+    type: project.type === "chat" || project.type === "project" ? project.type : "project",
     name: typeof project.name === "string" ? project.name : "Projeto",
-    description:
-      typeof project.description === "string" ? project.description : "",
-    instructions:
-      typeof project.instructions === "string" ? project.instructions : "",
-    memoryModules: Array.isArray(project.memoryModules)
-      ? project.memoryModules
-      : [],
+    description: typeof project.description === "string" ? project.description : "",
+    instructions: typeof project.instructions === "string" ? project.instructions : "",
+    memoryModules: Array.isArray(project.memoryModules) ? project.memoryModules : [],
     messages: Array.isArray(project.messages) ? project.messages : [],
     modeConfig:
       project.modeConfig &&
@@ -1815,6 +1920,7 @@ function normalizeProject(project: Partial<Project>): Project {
       typeof project.modeConfig.search === "string"
         ? project.modeConfig
         : { ...DEFAULT_MODE_CONFIG },
+    parentProjectId: typeof project.parentProjectId === "string" ? project.parentProjectId : undefined,
   };
 }
 

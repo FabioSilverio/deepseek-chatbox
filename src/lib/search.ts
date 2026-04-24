@@ -8,10 +8,72 @@ export type SearchResult = {
   excerpt?: string;
 };
 
-// ── Jina AI Search (primary — no API key, works from cloud IPs) ──────────────
+// ── SearXNG — primary (open meta-search, JSON API, works from cloud IPs) ─────
+
+type SearXNGResponse = {
+  results?: Array<{
+    title?: string;
+    url?: string;
+    content?: string;
+  }>;
+};
+
+// Multiple public instances as fallback chain
+const SEARXNG_INSTANCES = [
+  "https://searx.be",
+  "https://searxng.world",
+  "https://search.sapti.me",
+  "https://priv.au",
+];
+
+async function searchSearXNG(
+  query: string,
+  limit: number,
+): Promise<SearchResult[]> {
+  for (const instance of SEARXNG_INSTANCES) {
+    try {
+      const url = new URL(`${instance}/search`);
+      url.searchParams.set("q", query);
+      url.searchParams.set("format", "json");
+      url.searchParams.set("language", "auto");
+      url.searchParams.set("safesearch", "0");
+
+      const response = await fetch(url.toString(), {
+        cache: "no-store",
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; Deepbox/1.0; +https://deepbox.chat)",
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (!response.ok) continue;
+
+      const data = (await response.json()) as SearXNGResponse;
+      if (!data.results?.length) continue;
+
+      const results = data.results
+        .slice(0, limit)
+        .map((item) => ({
+          title: item.title ?? "",
+          url: item.url ?? "",
+          snippet: item.content ?? "",
+          displayUrl: makeDisplayUrl(item.url ?? ""),
+        }))
+        .filter((r) => r.title && r.url);
+
+      if (results.length > 0) return results;
+    } catch {
+      continue;
+    }
+  }
+  return [];
+}
+
+// ── Jina AI Search — secondary (no key, JSON API) ─────────────────────────────
 
 type JinaSearchResponse = {
-  code?: number;
   data?: Array<{
     title?: string;
     url?: string;
@@ -24,21 +86,19 @@ async function searchJina(
   query: string,
   limit: number,
 ): Promise<SearchResult[]> {
-  const url = `https://s.jina.ai/${encodeURIComponent(query)}`;
+  const url = `https://s.jina.ai/?q=${encodeURIComponent(query)}`;
 
   const response = await fetch(url, {
     cache: "no-store",
     headers: {
       Accept: "application/json",
       "X-Return-Format": "json",
-      "X-With-Links-Summary": "false",
+      "X-No-Cache": "true",
     },
     signal: AbortSignal.timeout(14000),
   });
 
-  if (!response.ok) {
-    throw new Error(`Jina search returned ${response.status}`);
-  }
+  if (!response.ok) throw new Error(`Jina returned ${response.status}`);
 
   const data = (await response.json()) as JinaSearchResponse;
   if (!data.data?.length) return [];
@@ -55,7 +115,7 @@ async function searchJina(
     .filter((r) => r.title && r.url);
 }
 
-// ── DuckDuckGo HTML (fallback — may be blocked from data-center IPs) ────────
+// ── DuckDuckGo HTML — tertiary (often blocked from datacenter IPs) ────────────
 
 const BROWSER_HEADERS = {
   "User-Agent":
@@ -95,16 +155,41 @@ async function searchDuckDuckGo(
     const resolvedUrl = unwrapDuckDuckGoUrl(rawHref);
     const snippet = cleanText(root.find(".result__snippet").text());
     if (!title || !resolvedUrl) return undefined;
-    results.push({
-      title,
-      url: resolvedUrl,
-      snippet,
-      displayUrl: makeDisplayUrl(resolvedUrl),
-    });
+    results.push({ title, url: resolvedUrl, snippet, displayUrl: makeDisplayUrl(resolvedUrl) });
     return undefined;
   });
 
   return results;
+}
+
+// ── Provider waterfall ────────────────────────────────────────────────────────
+
+async function searchWithFallback(
+  query: string,
+  limit: number,
+): Promise<SearchResult[]> {
+  // 1. SearXNG (most reliable from cloud)
+  try {
+    const results = await searchSearXNG(query, limit);
+    if (results.length > 0) return results;
+  } catch {
+    // fall through
+  }
+
+  // 2. Jina AI
+  try {
+    const results = await searchJina(query, limit);
+    if (results.length > 0) return results;
+  } catch {
+    // fall through
+  }
+
+  // 3. DuckDuckGo (often blocked but worth trying)
+  try {
+    return await searchDuckDuckGo(query, limit);
+  } catch {
+    return [];
+  }
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
@@ -114,11 +199,8 @@ export async function collectSearchContext(
   mode: "web" | "deep",
 ): Promise<SearchResult[]> {
   const queries =
-    mode === "web"
-      ? [query]
-      : buildResearchQueries(query).slice(0, 4);
+    mode === "web" ? [query] : buildResearchQueries(query).slice(0, 4);
 
-  // Run all queries; try Jina first, fall back to DuckDuckGo per query
   const settled = await Promise.allSettled(
     queries.map((q) => searchWithFallback(q, mode === "web" ? 6 : 4)),
   );
@@ -138,11 +220,10 @@ export async function collectSearchContext(
 
   const topResults = merged.slice(0, mode === "web" ? 6 : 10);
 
-  // For deep mode, enrich top results with full page text
+  // Enrich top results with Jina reader excerpts in deep mode
   if (mode === "deep") {
     const enriched = await Promise.allSettled(
       topResults.slice(0, 5).map(async (item) => {
-        // Jina reader can also fetch a clean page excerpt
         if (!item.excerpt) {
           item.excerpt = await fetchJinaReader(item.url);
         }
@@ -158,51 +239,29 @@ export async function collectSearchContext(
   return topResults;
 }
 
-async function searchWithFallback(
-  query: string,
-  limit: number,
-): Promise<SearchResult[]> {
-  try {
-    const results = await searchJina(query, limit);
-    if (results.length > 0) return results;
-  } catch {
-    // Jina failed — try DuckDuckGo
-  }
-  try {
-    return await searchDuckDuckGo(query, limit);
-  } catch {
-    return [];
-  }
-}
-
 export function formatSearchContext(results: SearchResult[]): string {
-  if (results.length === 0) return "No web results were available.";
+  if (results.length === 0) return "";
 
   return results
     .map((result, index) => {
       const lines = [
         `[${index + 1}] ${result.title}`,
         `URL: ${result.url}`,
-        `Snippet: ${result.snippet || "No snippet."}`,
+        `Snippet: ${result.snippet || "—"}`,
       ];
-      if (result.excerpt) {
-        lines.push(`Excerpt: ${result.excerpt}`);
-      }
+      if (result.excerpt) lines.push(`Excerpt: ${result.excerpt}`);
       return lines.join("\n");
     })
     .join("\n\n");
 }
 
-// ── Jina reader for deep mode excerpts ───────────────────────────────────────
+// ── Jina Reader (deep mode excerpts) ─────────────────────────────────────────
 
 async function fetchJinaReader(url: string): Promise<string | undefined> {
   try {
     const response = await fetch(`https://r.jina.ai/${url}`, {
       cache: "no-store",
-      headers: {
-        Accept: "text/plain",
-        "X-Return-Format": "text",
-      },
+      headers: { Accept: "text/plain", "X-Return-Format": "text" },
       signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) return undefined;
@@ -218,12 +277,7 @@ async function fetchJinaReader(url: string): Promise<string | undefined> {
 function buildResearchQueries(query: string): string[] {
   const clean = query.replace(/\s+/g, " ").trim();
   const year = new Date().getFullYear();
-  return [
-    clean,
-    `${clean} ${year}`,
-    `${clean} analysis`,
-    `${clean} latest news`,
-  ];
+  return [clean, `${clean} ${year}`, `${clean} analysis`, `${clean} latest`];
 }
 
 function unwrapDuckDuckGoUrl(href: string | undefined): string | undefined {
@@ -241,9 +295,9 @@ function normalizeForDedupe(url: string): string | undefined {
   try {
     const parsed = new URL(url);
     parsed.hash = "";
-    parsed.searchParams.delete("utm_source");
-    parsed.searchParams.delete("utm_medium");
-    parsed.searchParams.delete("utm_campaign");
+    ["utm_source", "utm_medium", "utm_campaign"].forEach((p) =>
+      parsed.searchParams.delete(p),
+    );
     return parsed.toString();
   } catch {
     return undefined;
