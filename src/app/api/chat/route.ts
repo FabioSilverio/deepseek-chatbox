@@ -1,4 +1,4 @@
-import { getChatMode } from "@/lib/chat-config";
+import { getChatMode, resolveMode, sanitizeModeConfig } from "@/lib/chat-config";
 import {
   collectSearchContext,
   formatSearchContext,
@@ -15,6 +15,7 @@ type IncomingMessage = {
 
 type ChatRequestBody = {
   mode?: string;
+  combo?: { thinking?: string; search?: string };
   messages?: IncomingMessage[];
   project?: ProjectContext;
 };
@@ -46,7 +47,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const mode = getChatMode(body.mode);
+  const mode = body.combo
+    ? resolveMode(sanitizeModeConfig(body.combo))
+    : getChatMode(body.mode);
   const messages = sanitizeMessages(body.messages);
   const project = sanitizeProject(body.project);
 
@@ -124,7 +127,7 @@ export async function POST(request: Request) {
             messages: [
               {
                 role: "system",
-                content: buildSystemPrompt(mode.id, mode.model, searchContext, project),
+                content: buildSystemPrompt(mode.search, mode.model, searchContext, project),
               },
               ...messages,
             ],
@@ -291,7 +294,7 @@ function sanitizeProject(project: ProjectContext | undefined): ProjectContext {
 }
 
 function buildSystemPrompt(
-  modeId: string,
+  searchMode: string,
   model: string,
   searchContext: string,
   project: ProjectContext,
@@ -305,6 +308,14 @@ function buildSystemPrompt(
     "Match the user's language. Be direct, useful, and polished.",
     "Use Markdown when it improves scanability. Keep formatting elegant.",
     `Current date: ${currentDate}.`,
+    [
+      "When the user asks for a standalone document — such as an HTML page, dashboard, SVG graphic, code file, or markdown report — wrap the complete content in:",
+      '<deepbox-artifact type="html|svg|code|markdown" title="Descriptive title" language="language if code">',
+      "...full content...",
+      "</deepbox-artifact>",
+      'Use type="html" for visual/interactive content, type="markdown" for reports and structured text, type="code" for code files, type="svg" for vector graphics.',
+      "The user will see the artifact rendered in a dedicated viewer panel. Only use artifact tags for self-contained deliverables, not for inline code snippets.",
+    ].join("\n"),
   ];
 
   if (project.name || project.instructions || project.modules?.length) {
@@ -325,7 +336,7 @@ function buildSystemPrompt(
     );
   }
 
-  if (modeId === "research") {
+  if (searchMode === "deep") {
     lines.push(
       "The user selected Research mode. Synthesize carefully, compare evidence, surface uncertainty, and cite web sources as [1], [2], etc. when using supplied context.",
     );
