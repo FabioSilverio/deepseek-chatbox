@@ -15,6 +15,8 @@ import {
   BookOpen,
   Brain,
   Check,
+  ChevronDown,
+  ChevronRight,
   Code2,
   Copy,
   ExternalLink,
@@ -27,6 +29,7 @@ import {
   Layers,
   LibraryBig,
   MessageSquare,
+  MoreHorizontal,
   Plus,
   Search,
   Send,
@@ -136,6 +139,9 @@ export function ChatInterface() {
   const [showSettings, setShowSettings] = useState(false);
   const [projectSettingsId, setProjectSettingsId] = useState<string | null>(null);
   const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null);
+  const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
+  const [projectMenuId, setProjectMenuId] = useState<string | null>(null);
+  const [chatMenuId, setChatMenuId] = useState<string | null>(null);
 
   const endRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -149,6 +155,10 @@ export function ChatInterface() {
   const projectMemoryModules = activeProject.memoryModules;
   const modeConfig = activeProject.modeConfig;
   const activeMode = useMemo(() => resolveMode(modeConfig), [modeConfig]);
+  const standaloneChats = useMemo(
+    () => projects.filter((p) => p.type === "chat" && !p.parentProjectId),
+    [projects],
+  );
 
   useEffect(() => {
     window.localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
@@ -425,6 +435,7 @@ export function ChatInterface() {
       parentProjectId: projectId,
     };
     setProjects((current) => [...current, newChat]);
+    setCollapsedProjects((current) => ({ ...current, [projectId]: false }));
     setActiveProjectId(newChat.id);
     setModules([]);
     setInput("");
@@ -439,6 +450,41 @@ export function ChatInterface() {
       setActiveProjectId(nextProjects[0].id);
     }
     setModules([]);
+    setCollapsedProjects((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }
+
+  function toggleProjectCollapsed(projectId: string) {
+    setCollapsedProjects((current) => ({
+      ...current,
+      [projectId]: !current[projectId],
+    }));
+  }
+
+  function closeProjectMenu() {
+    setProjectMenuId(null);
+  }
+
+  function closeChatMenu() {
+    setChatMenuId(null);
+  }
+
+  function renameChat(chatId: string) {
+    const chat = projects.find((p) => p.id === chatId && p.type === "chat");
+    if (!chat) return;
+    const nextName = window.prompt("Novo nome da conversa:", chat.name)?.trim();
+    if (!nextName) return;
+    updateProject(chatId, (p) => ({ ...p, name: nextName.slice(0, 80) }));
+  }
+
+  function moveChat(chatId: string, targetProjectId?: string) {
+    updateProject(chatId, (p) => ({
+      ...p,
+      parentProjectId: targetProjectId || undefined,
+    }));
   }
 
   function pinModuleToProject(module: TextModule) {
@@ -482,10 +528,16 @@ export function ChatInterface() {
   const canSubmit = (input.trim().length > 0 || modules.length > 0) && !isStreaming;
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-[var(--app-bg)] text-[var(--ctp-text)]">
+    <div
+      className="flex h-dvh overflow-hidden bg-[var(--app-bg)] text-[var(--ctp-text)]"
+      onClick={() => {
+        if (projectMenuId) closeProjectMenu();
+        if (chatMenuId) closeChatMenu();
+      }}
+    >
 
       {/* ── Sidebar ── */}
-      <aside className="hidden w-[268px] shrink-0 flex-col border-r border-white/10 bg-[var(--sidebar-bg)] backdrop-blur-2xl lg:flex">
+      <aside className="hidden w-[286px] shrink-0 flex-col border-r border-white/10 bg-[var(--sidebar-bg)] backdrop-blur-2xl lg:flex">
 
         {/* Logo + New Chat */}
         <div className="flex items-center justify-between px-4 pt-5 pb-3">
@@ -508,7 +560,7 @@ export function ChatInterface() {
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-2 py-1 space-y-4">
+        <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-1.5">
 
           {/* ── Projects section ── */}
           <section>
@@ -535,19 +587,29 @@ export function ChatInterface() {
                 const projectChats = projects.filter(
                   (p) => p.type === "chat" && p.parentProjectId === project.id,
                 );
+                const isCollapsed = collapsedProjects[project.id] ?? false;
                 return (
                   <div key={project.id}>
                     {/* Project header row */}
                     <div
-                      className={`group relative flex items-center rounded-[12px] border transition-colors ${
+                      className={`group relative flex items-center rounded-[12px] border transition-all duration-150 ${
                         isProjectActive || isChildActive
                           ? "border-[var(--ctp-mauve)]/25 bg-[var(--ctp-mauve)]/10"
-                          : "border-transparent hover:border-white/8 hover:bg-white/[0.04]"
+                          : "border-transparent hover:border-white/7 hover:bg-white/[0.03]"
                       }`}
                     >
                       <button
                         type="button"
-                        className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left"
+                        className="ml-1 grid size-6 shrink-0 place-items-center rounded-[7px] text-[var(--ctp-overlay1)] transition hover:bg-white/[0.08] hover:text-[var(--ctp-text)]"
+                        title={isCollapsed ? "Expandir projeto" : "Recolher projeto"}
+                        aria-label={isCollapsed ? "Expandir projeto" : "Recolher projeto"}
+                        onClick={() => toggleProjectCollapsed(project.id)}
+                      >
+                        {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                      </button>
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2.5 text-left"
                         onClick={() => {
                           // Navigate to most recent project chat, or the project itself
                           if (projectChats.length > 0) {
@@ -576,85 +638,181 @@ export function ChatInterface() {
                           >
                             {project.name}
                           </p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-[var(--ctp-overlay1)]">
                             {hasInstructions && (
-                              <span className="inline-flex items-center gap-0.5 text-[10px] text-[var(--ctp-mauve)]/70">
+                              <span className="inline-flex items-center gap-1 whitespace-nowrap text-[var(--ctp-mauve)]/85">
                                 <BookOpen size={9} />
                                 instruções
                               </span>
                             )}
                             {moduleCount > 0 && (
-                              <span className="text-[10px] text-[var(--ctp-overlay1)]">
+                              <span className="whitespace-nowrap">
                                 {moduleCount} módulo{moduleCount > 1 ? "s" : ""}
                               </span>
                             )}
                             {projectChats.length > 0 && (
-                              <span className="text-[10px] text-[var(--ctp-overlay1)]">
+                              <span className="whitespace-nowrap">
                                 {projectChats.length} conversa{projectChats.length > 1 ? "s" : ""}
                               </span>
                             )}
                           </div>
                         </div>
                       </button>
-                      {/* New chat in project */}
-                      <button
-                        type="button"
-                        className="grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] opacity-0 transition hover:bg-white/10 hover:text-[var(--ctp-text)] group-hover:opacity-100"
-                        title="Nova conversa no projeto"
-                        aria-label="Nova conversa no projeto"
-                        onClick={() => createProjectChat(project.id)}
-                      >
-                        <Plus size={12} />
-                      </button>
-                      <button
-                        type="button"
-                        className="mr-2 grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] opacity-0 transition hover:bg-white/10 hover:text-[var(--ctp-text)] group-hover:opacity-100"
-                        title="Configurações do projeto"
-                        aria-label="Configurações do projeto"
-                        onClick={() => setProjectSettingsId(project.id)}
-                      >
-                        <Settings size={12} />
-                      </button>
+                      <div className="relative mr-1.5">
+                        <button
+                          type="button"
+                        className="grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] opacity-0 transition hover:bg-white/[0.08] hover:text-[var(--ctp-text)] group-hover:opacity-100"
+                          title="Ações do projeto"
+                          aria-label="Ações do projeto"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setProjectMenuId((current) =>
+                              current === project.id ? null : project.id,
+                            );
+                          }}
+                        >
+                          <MoreHorizontal size={12} />
+                        </button>
+                        {projectMenuId === project.id && (
+                          <div
+                            className="absolute right-0 top-8 z-20 w-44 rounded-[10px] border border-white/10 bg-[rgba(12,12,18,0.98)] p-1 shadow-[0_12px_28px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-subtext0)] transition hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
+                              onClick={() => {
+                                createProjectChat(project.id);
+                                closeProjectMenu();
+                                closeChatMenu();
+                              }}
+                            >
+                              <Plus size={12} />
+                              Nova conversa
+                            </button>
+                            <button
+                              type="button"
+                              className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-subtext0)] transition hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
+                              onClick={() => {
+                                setProjectSettingsId(project.id);
+                                closeProjectMenu();
+                                closeChatMenu();
+                              }}
+                            >
+                              <Settings size={12} />
+                              Configurações
+                            </button>
+                            <button
+                              type="button"
+                              className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-red)]/85 transition hover:bg-[var(--ctp-red)]/10 hover:text-[var(--ctp-red)]"
+                              onClick={() => {
+                                deleteProject(project.id);
+                                closeProjectMenu();
+                                closeChatMenu();
+                              }}
+                            >
+                              <Trash2 size={12} />
+                              Excluir projeto
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Nested conversations inside this project */}
                     {projectChats.length > 0 && (
-                      <div className="mt-0.5 ml-3 space-y-0.5 border-l border-white/[0.07] pl-3">
+                      <div
+                        className={`mt-1 ml-3 overflow-hidden border-l border-white/[0.09] pl-3 transition-all duration-200 ease-out ${
+                          isCollapsed ? "max-h-0 opacity-0" : "max-h-[520px] opacity-100"
+                        }`}
+                      >
+                        <div className="space-y-1">
                         {projectChats.map((chat) => {
                           const isChatActive = chat.id === activeProject.id;
+                          const lastUserMsg = [...chat.messages]
+                            .reverse()
+                            .find((m) => m.role === "user");
                           return (
                             <div
                               key={chat.id}
                               className={`group relative flex items-center rounded-[10px] border transition-colors ${
                                 isChatActive
                                   ? "border-[var(--ctp-mauve)]/20 bg-[var(--ctp-mauve)]/8"
-                                  : "border-transparent hover:border-white/8 hover:bg-white/[0.04]"
+                                  : "border-transparent hover:border-white/7 hover:bg-white/[0.03]"
                               }`}
                             >
                               <button
                                 type="button"
-                                className="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left"
+                                className="flex min-w-0 flex-1 items-start gap-2 px-2.5 py-1.5 text-left"
                                 onClick={() => setActiveProjectId(chat.id)}
                               >
                                 <MessageSquare
                                   size={11}
-                                  className={`shrink-0 transition-colors ${
+                                  className={`mt-0.5 shrink-0 transition-colors ${
                                     isChatActive ? "text-[var(--ctp-mauve)]" : "text-[var(--ctp-overlay2)]"
                                   }`}
                                 />
-                                <p
-                                  className={`truncate text-[12px] leading-5 transition-colors ${
-                                    isChatActive
-                                      ? "font-medium text-[var(--ctp-text)]"
-                                      : "text-[var(--ctp-subtext0)]"
-                                  }`}
-                                >
-                                  {chat.name}
-                                </p>
+                                <div className="min-w-0">
+                                  <p
+                                    className={`truncate text-[12px] leading-[1.35] transition-colors ${
+                                      isChatActive
+                                        ? "font-medium text-[var(--ctp-text)]"
+                                        : "text-[var(--ctp-subtext0)]"
+                                    }`}
+                                  >
+                                    {chat.name}
+                                  </p>
+                                  <p className="truncate text-[10px] leading-[1.25] text-[var(--ctp-overlay2)]">
+                                    {lastUserMsg?.content.slice(0, 42) || "Sem mensagens"}
+                                  </p>
+                                </div>
                               </button>
+                              <div className="relative mr-1">
+                                <button
+                                  type="button"
+                                  className="grid size-6 shrink-0 place-items-center rounded-[6px] text-[var(--ctp-overlay2)] opacity-0 transition hover:bg-white/[0.08] hover:text-[var(--ctp-text)] group-hover:opacity-100"
+                                  title="Ações da conversa"
+                                  aria-label="Ações da conversa"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setChatMenuId((current) => (current === chat.id ? null : chat.id));
+                                  }}
+                                >
+                                  <MoreHorizontal size={11} />
+                                </button>
+                                {chatMenuId === chat.id && (
+                                  <div
+                                    className="absolute right-0 top-7 z-20 w-44 rounded-[10px] border border-white/10 bg-[rgba(12,12,18,0.98)] p-1 shadow-[0_12px_28px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <button
+                                      type="button"
+                                      className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-subtext0)] transition hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
+                                      onClick={() => {
+                                        renameChat(chat.id);
+                                        closeChatMenu();
+                                      }}
+                                    >
+                                      <BookOpen size={12} />
+                                      Renomear
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-subtext0)] transition hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
+                                      onClick={() => {
+                                        moveChat(chat.id, undefined);
+                                        closeChatMenu();
+                                      }}
+                                    >
+                                      <MessageSquare size={12} />
+                                      Mover para Conversas
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                               <button
                                 type="button"
-                                className="mr-1.5 grid size-6 shrink-0 place-items-center rounded-[6px] text-[var(--ctp-overlay2)] opacity-0 transition hover:bg-[var(--ctp-red)]/15 hover:text-[var(--ctp-red)] group-hover:opacity-100"
+                                className="mr-1 grid size-6 shrink-0 place-items-center rounded-[6px] text-[var(--ctp-overlay2)] opacity-0 transition hover:bg-[var(--ctp-red)]/15 hover:text-[var(--ctp-red)] group-hover:opacity-100"
                                 title="Excluir conversa"
                                 aria-label="Excluir conversa"
                                 onClick={() => deleteProject(chat.id)}
@@ -664,10 +822,11 @@ export function ChatInterface() {
                             </div>
                           );
                         })}
+                        </div>
                       </div>
                     )}
                     {/* Empty state — prompt to create first conversation */}
-                    {projectChats.length === 0 && isProjectActive && (
+                    {!isCollapsed && projectChats.length === 0 && isProjectActive && (
                       <div className="ml-6 mt-1">
                         <button
                           type="button"
@@ -698,7 +857,7 @@ export function ChatInterface() {
               </p>
             </div>
             <div className="space-y-0.5">
-              {projects.filter((p) => p.type === "chat").map((project) => {
+              {standaloneChats.map((project) => {
                 const lastUserMsg = [...project.messages]
                   .reverse()
                   .find((m) => m.role === "user");
@@ -706,15 +865,15 @@ export function ChatInterface() {
                 return (
                   <div
                     key={project.id}
-                    className={`group relative flex items-center rounded-[12px] border transition-colors ${
+                    className={`group relative flex items-center rounded-[12px] border transition-all duration-150 ${
                       isActive
-                        ? "border-[var(--ctp-blue)]/20 bg-[var(--ctp-blue)]/8"
-                        : "border-transparent hover:border-white/8 hover:bg-white/[0.04]"
+                        ? "border-[var(--ctp-blue)]/22 bg-[var(--ctp-blue)]/9 shadow-[0_6px_18px_rgba(137,180,250,0.1)]"
+                        : "border-transparent hover:border-white/7 hover:bg-white/[0.03]"
                     }`}
                   >
                     <button
                       type="button"
-                      className="flex min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left"
+                      className="flex min-w-0 flex-1 items-start gap-2.5 px-3 py-2 text-left"
                       onClick={() => setActiveProjectId(project.id)}
                     >
                       <MessageSquare
@@ -727,7 +886,7 @@ export function ChatInterface() {
                       />
                       <div className="min-w-0">
                         <p
-                          className={`truncate text-[13px] leading-5 transition-colors ${
+                          className={`truncate text-[13px] leading-[1.35] transition-colors ${
                             isActive
                               ? "font-medium text-[var(--ctp-text)]"
                               : "text-[var(--ctp-subtext0)]"
@@ -736,30 +895,83 @@ export function ChatInterface() {
                           {project.name}
                         </p>
                         {lastUserMsg ? (
-                          <p className="mt-0.5 truncate text-[11px] leading-4 text-[var(--ctp-overlay1)]">
+                          <p className="mt-0.5 truncate text-[10px] leading-[1.25] text-[var(--ctp-overlay1)]">
                             {lastUserMsg.content.slice(0, 48)}
                           </p>
                         ) : (
-                          <p className="mt-0.5 text-[11px] leading-4 text-[var(--ctp-overlay2)] italic">
+                          <p className="mt-0.5 text-[10px] leading-[1.25] text-[var(--ctp-overlay2)] italic">
                             Sem mensagens
                           </p>
                         )}
                       </div>
                     </button>
-                    {/* Delete button for conversations */}
-                    <button
-                      type="button"
-                      className="mr-2 grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] opacity-0 transition hover:bg-[var(--ctp-red)]/15 hover:text-[var(--ctp-red)] group-hover:opacity-100"
-                      title="Excluir conversa"
-                      aria-label="Excluir conversa"
-                      onClick={() => deleteProject(project.id)}
-                    >
-                      <X size={12} />
-                    </button>
+                    <div className="relative mr-1.5">
+                      <button
+                        type="button"
+                        className="grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] opacity-0 transition hover:bg-white/[0.08] hover:text-[var(--ctp-text)] group-hover:opacity-100"
+                        title="Ações da conversa"
+                        aria-label="Ações da conversa"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setChatMenuId((current) => (current === project.id ? null : project.id));
+                        }}
+                      >
+                        <MoreHorizontal size={12} />
+                      </button>
+                      {chatMenuId === project.id && (
+                        <div
+                          className="absolute right-0 top-8 z-20 w-44 rounded-[10px] border border-white/10 bg-[rgba(12,12,18,0.98)] p-1 shadow-[0_12px_28px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-subtext0)] transition hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
+                            onClick={() => {
+                              renameChat(project.id);
+                              closeChatMenu();
+                            }}
+                          >
+                            <BookOpen size={12} />
+                            Renomear
+                          </button>
+                          {projects.filter((p) => p.type === "project").length > 0 && (
+                            <div className="my-1 border-t border-white/8" />
+                          )}
+                          {projects
+                            .filter((p) => p.type === "project")
+                            .slice(0, 5)
+                            .map((target) => (
+                              <button
+                                key={target.id}
+                                type="button"
+                                className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-subtext0)] transition hover:bg-white/[0.06] hover:text-[var(--ctp-text)]"
+                                onClick={() => {
+                                  moveChat(project.id, target.id);
+                                  closeChatMenu();
+                                }}
+                              >
+                                <Layers size={12} />
+                                Mover para {target.name}
+                              </button>
+                            ))}
+                          <button
+                            type="button"
+                            className="mt-1 flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[12px] text-[var(--ctp-red)]/85 transition hover:bg-[var(--ctp-red)]/10 hover:text-[var(--ctp-red)]"
+                            onClick={() => {
+                              deleteProject(project.id);
+                              closeChatMenu();
+                            }}
+                          >
+                            <X size={12} />
+                            Excluir conversa
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
-              {projects.filter((p) => p.type === "chat").length === 0 && (
+              {standaloneChats.length === 0 && (
                 <p className="px-3 py-2 text-[11px] italic text-[var(--ctp-overlay2)]">
                   Nenhuma conversa ainda
                 </p>
