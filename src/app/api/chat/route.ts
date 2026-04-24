@@ -317,6 +317,13 @@ function buildSystemPrompt(
     "Use Markdown when it improves scanability. Keep formatting elegant.",
     `Current date: ${currentDate}.`,
     [
+      "CRITICAL — Tool call rules:",
+      "You do NOT have any tools, functions, or search capabilities available during this response.",
+      "NEVER output <search>, <tool_call>, <function_call>, or any XML/JSON tool invocation syntax.",
+      "If you need web data, it has already been fetched server-side and injected below (if available).",
+      "If no web context is provided, answer directly from your training knowledge without attempting to call any tool.",
+    ].join("\n"),
+    [
       "When the user asks for a standalone document — such as an HTML page, dashboard, SVG graphic, code file, or markdown report — wrap the complete content in:",
       '<deepbox-artifact type="html|svg|code|markdown" title="Descriptive title" language="language if code">',
       "...full content...",

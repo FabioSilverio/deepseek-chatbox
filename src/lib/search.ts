@@ -21,9 +21,11 @@ type SearXNGResponse = {
 // Multiple public instances as fallback chain
 const SEARXNG_INSTANCES = [
   "https://searx.be",
+  "https://priv.au",
   "https://searxng.world",
   "https://search.sapti.me",
-  "https://priv.au",
+  "https://paulgo.io",
+  "https://search.ononoki.org",
 ];
 
 async function searchSearXNG(
@@ -86,7 +88,8 @@ async function searchJina(
   query: string,
   limit: number,
 ): Promise<SearchResult[]> {
-  const url = `https://s.jina.ai/?q=${encodeURIComponent(query)}`;
+  // Jina Search: query goes as path segment, not query param
+  const url = `https://s.jina.ai/${encodeURIComponent(query)}`;
 
   const response = await fetch(url, {
     cache: "no-store",
