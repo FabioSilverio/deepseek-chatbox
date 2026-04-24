@@ -133,6 +133,7 @@ export function ChatInterface() {
   );
   const [showSettings, setShowSettings] = useState(false);
   const [projectSettingsId, setProjectSettingsId] = useState<string | null>(null);
+  const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null);
 
   const endRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -747,6 +748,7 @@ export function ChatInterface() {
                       i === messages.length - 1 &&
                       message.role === "assistant"
                     }
+                    onOpenArtifact={setOpenArtifact}
                   />
                 ))
               )}
@@ -894,6 +896,14 @@ export function ChatInterface() {
           apiKey={apiKey}
           onChange={setApiKey}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {/* ── Artifact viewer — rendered at root so no stacking-context issues ── */}
+      {openArtifact && (
+        <ArtifactViewer
+          artifact={openArtifact}
+          onClose={() => setOpenArtifact(null)}
         />
       )}
     </div>
@@ -1196,22 +1206,31 @@ function MessageBubble({
   copied,
   onCopy,
   isLive = false,
+  onOpenArtifact,
 }: {
   message: ChatMessage;
   copied: boolean;
   onCopy: () => void;
   isLive?: boolean;
+  onOpenArtifact: (artifact: Artifact) => void;
 }) {
   const isUser = message.role === "user";
-  const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null);
 
-  const { display, artifacts } = useMemo(
-    () =>
-      isLive || !message.content
-        ? { display: message.content, artifacts: [] }
-        : extractArtifacts(message.content),
-    [message.content, isLive],
-  );
+  const { display, artifacts } = useMemo(() => {
+    if (!message.content) return { display: "", artifacts: [] };
+    if (isLive) {
+      // Strip complete and partial artifact tags cleanly during streaming
+      const stripped = message.content
+        .replace(ARTIFACT_RE, "")
+        .replace(/<deepbox-artifact\b[^>]*>[\s\S]*$/, "");
+      return { display: stripped.trim(), artifacts: [] };
+    }
+    return extractArtifacts(message.content);
+  }, [message.content, isLive]);
+
+  // Show a subtle indicator while an artifact is being streamed
+  const isStreamingArtifact =
+    isLive && /<deepbox-artifact\b/.test(message.content ?? "");
 
   return (
     <article
@@ -1288,6 +1307,14 @@ function MessageBubble({
           <SourceList sources={message.sources} />
         ) : null}
 
+        {isStreamingArtifact && (
+          <div className="mt-3 flex items-center gap-2 text-[13px] text-[var(--ctp-mauve)]/70">
+            <FileText size={13} />
+            <span>Gerando documento</span>
+            <span className="streaming-cursor" />
+          </div>
+        )}
+
         {artifacts.length > 0 && (
           <div className="mt-4 flex flex-col gap-2">
             {artifacts.map((artifact, i) => (
@@ -1295,7 +1322,7 @@ function MessageBubble({
                 key={i}
                 type="button"
                 className="artifact-card"
-                onClick={() => setOpenArtifact(artifact)}
+                onClick={() => onOpenArtifact(artifact)}
               >
                 <span className="artifact-card-icon">
                   {artifact.type === "html" ? (
@@ -1320,13 +1347,6 @@ function MessageBubble({
               </button>
             ))}
           </div>
-        )}
-
-        {openArtifact && (
-          <ArtifactViewer
-            artifact={openArtifact}
-            onClose={() => setOpenArtifact(null)}
-          />
         )}
 
         {!isUser && message.content ? (
