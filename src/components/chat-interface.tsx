@@ -15,12 +15,16 @@ import {
   Brain,
   Check,
   Copy,
+  Eye,
+  EyeOff,
   FileText,
   Gauge,
   LibraryBig,
+  MessageSquare,
   Plus,
   Search,
   Send,
+  Settings,
   Sparkles,
   Square,
   Trash2,
@@ -76,6 +80,7 @@ const PASTE_MODULE_THRESHOLD = 1400;
 const MAX_MODULES = 8;
 const PROJECTS_KEY = "deepbox.projects";
 const ACTIVE_PROJECT_KEY = "deepbox.activeProjectId";
+const API_KEY_KEY = "deepbox.apiKey";
 const DEFAULT_PROJECT_ID = "default-project";
 
 const modeIcons = {
@@ -94,28 +99,28 @@ const starterPrompts = [
 
 export function ChatInterface() {
   const [projects, setProjects] = useState<Project[]>(readSavedProjects);
-  const [activeProjectId, setActiveProjectId] = useState(
-    readSavedActiveProjectId,
-  );
+  const [activeProjectId, setActiveProjectId] = useState(readSavedActiveProjectId);
   const [input, setInput] = useState("");
   const [modeId, setModeId] = useState<ChatModeId>(DEFAULT_CHAT_MODE);
   const [modules, setModules] = useState<TextModule[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [status, setStatus] = useState("");
-  const [abortController, setAbortController] =
-    useState<AbortController | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState(() =>
+    typeof window !== "undefined" ? (window.localStorage.getItem(API_KEY_KEY) ?? "") : "",
+  );
+  const [showSettings, setShowSettings] = useState(false);
+  const [projectSettingsId, setProjectSettingsId] = useState<string | null>(null);
 
   const endRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const activeMode = useMemo(() => getChatMode(modeId), [modeId]);
   const activeProject = useMemo(
-    () =>
-      projects.find((project) => project.id === activeProjectId) ?? projects[0],
+    () => projects.find((p) => p.id === activeProjectId) ?? projects[0],
     [activeProjectId, projects],
   );
   const messages = activeProject.messages;
-  const projectMemoryModules = activeProject.memoryModules;
 
   useEffect(() => {
     window.localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
@@ -126,13 +131,16 @@ export function ChatInterface() {
   }, [activeProjectId]);
 
   useEffect(() => {
+    window.localStorage.setItem(API_KEY_KEY, apiKey);
+  }, [apiKey]);
+
+  useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, status]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-
     textarea.style.height = "0px";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`;
   }, [input]);
@@ -172,16 +180,19 @@ export function ChatInterface() {
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { "X-Deepseek-Key": apiKey } : {}),
+        },
         body: JSON.stringify({
           mode: modeId,
           messages: nextMessages.map(toApiMessage),
           project: {
             name: activeProject.name,
             instructions: activeProject.instructions,
-            modules: activeProject.memoryModules.map((module) => ({
-              title: module.title,
-              content: module.content,
+            modules: activeProject.memoryModules.map((m) => ({
+              title: m.title,
+              content: m.content,
             })),
           },
         }),
@@ -193,59 +204,20 @@ export function ChatInterface() {
         throw new Error(message || "Falha ao chamar o backend.");
       }
 
-      await readStream(response.body, (eventPayload) => {
-        if (eventPayload.type === "status") {
-          setStatus(eventPayload.message);
-          return;
-        }
-
-        if (eventPayload.type === "sources") {
-          patchAssistant(projectId, assistantId, {
-            sources: eventPayload.sources,
-          });
-          return;
-        }
-
-        if (eventPayload.type === "reasoning") {
-          appendAssistant(
-            projectId,
-            assistantId,
-            "reasoning",
-            eventPayload.delta,
-          );
-          setStatus("Pensando...");
-          return;
-        }
-
-        if (eventPayload.type === "token") {
-          appendAssistant(projectId, assistantId, "content", eventPayload.delta);
-          setStatus("");
-          return;
-        }
-
-        if (eventPayload.type === "error") {
-          patchAssistant(projectId, assistantId, {
-            error: eventPayload.message,
-          });
-          setStatus("");
-          return;
-        }
-
-        if (eventPayload.type === "done") {
-          setStatus("");
-        }
+      await readStream(response.body, (ev) => {
+        if (ev.type === "status") { setStatus(ev.message); return; }
+        if (ev.type === "sources") { patchAssistant(projectId, assistantId, { sources: ev.sources }); return; }
+        if (ev.type === "reasoning") { appendAssistant(projectId, assistantId, "reasoning", ev.delta); setStatus("Pensando..."); return; }
+        if (ev.type === "token") { appendAssistant(projectId, assistantId, "content", ev.delta); setStatus(""); return; }
+        if (ev.type === "error") { patchAssistant(projectId, assistantId, { error: ev.message }); setStatus(""); return; }
+        if (ev.type === "done") { setStatus(""); }
       });
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        patchAssistant(projectId, assistantId, {
-          error: "Resposta interrompida.",
-        });
+        patchAssistant(projectId, assistantId, { error: "Resposta interrompida." });
       } else {
         patchAssistant(projectId, assistantId, {
-          error:
-            error instanceof Error
-              ? error.message
-              : "Falha inesperada ao enviar.",
+          error: error instanceof Error ? error.message : "Falha inesperada ao enviar.",
         });
       }
     } finally {
@@ -258,36 +230,23 @@ export function ChatInterface() {
 
   function updateProject(projectId: string, updater: (project: Project) => Project) {
     setProjects((current) =>
-      current.map((project) =>
-        project.id === projectId ? updater(project) : project,
-      ),
+      current.map((p) => (p.id === projectId ? updater(p) : p)),
     );
   }
 
   function setProjectMessages(
     projectId: string,
-    nextMessages:
-      | ChatMessage[]
-      | ((currentMessages: ChatMessage[]) => ChatMessage[]),
+    nextMessages: ChatMessage[] | ((current: ChatMessage[]) => ChatMessage[]),
   ) {
-    updateProject(projectId, (project) => ({
-      ...project,
-      messages:
-        typeof nextMessages === "function"
-          ? nextMessages(project.messages)
-          : nextMessages,
+    updateProject(projectId, (p) => ({
+      ...p,
+      messages: typeof nextMessages === "function" ? nextMessages(p.messages) : nextMessages,
     }));
   }
 
-  function patchAssistant(
-    projectId: string,
-    id: string,
-    patch: Partial<ChatMessage>,
-  ) {
+  function patchAssistant(projectId: string, id: string, patch: Partial<ChatMessage>) {
     setProjectMessages(projectId, (current) =>
-      current.map((message) =>
-        message.id === id ? { ...message, ...patch } : message,
-      ),
+      current.map((m) => (m.id === id ? { ...m, ...patch } : m)),
     );
   }
 
@@ -298,17 +257,13 @@ export function ChatInterface() {
     delta: string,
   ) {
     setProjectMessages(projectId, (current) =>
-      current.map((message) =>
-        message.id === id
-          ? { ...message, [field]: `${message[field] ?? ""}${delta}` }
-          : message,
+      current.map((m) =>
+        m.id === id ? { ...m, [field]: `${m[field] ?? ""}${delta}` } : m,
       ),
     );
   }
 
-  function stopStreaming() {
-    abortController?.abort();
-  }
+  function stopStreaming() { abortController?.abort(); }
 
   function clearChat() {
     stopStreaming();
@@ -325,35 +280,39 @@ export function ChatInterface() {
       memoryModules: [],
       messages: [],
     };
-
     setProjects((current) => [...current, nextProject]);
     setActiveProjectId(nextProject.id);
     setModules([]);
     setInput("");
   }
 
+  function deleteProject(id: string) {
+    const remaining = projects.filter((p) => p.id !== id);
+    const nextProjects = remaining.length > 0 ? remaining : [createDefaultProject()];
+    setProjects(nextProjects);
+    if (activeProjectId === id) setActiveProjectId(nextProjects[0].id);
+    setModules([]);
+  }
+
   function pinModuleToProject(module: TextModule) {
-    updateProject(activeProject.id, (project) => ({
-      ...project,
-      memoryModules: [...project.memoryModules, module].slice(-MAX_MODULES),
+    updateProject(activeProject.id, (p) => ({
+      ...p,
+      memoryModules: [...p.memoryModules, module].slice(-MAX_MODULES),
     }));
-    setModules((current) => current.filter((item) => item.id !== module.id));
+    setModules((current) => current.filter((m) => m.id !== module.id));
     setStatus("Modulo salvo no projeto.");
   }
 
-  function removeProjectModule(moduleId: string) {
-    updateProject(activeProject.id, (project) => ({
-      ...project,
-      memoryModules: project.memoryModules.filter(
-        (module) => module.id !== moduleId,
-      ),
+  function removeProjectModule(projectId: string, moduleId: string) {
+    updateProject(projectId, (p) => ({
+      ...p,
+      memoryModules: p.memoryModules.filter((m) => m.id !== moduleId),
     }));
   }
 
   function handlePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
     const pasted = event.clipboardData.getData("text/plain");
     if (!isLargePaste(pasted)) return;
-
     event.preventDefault();
     const nextModule = makeTextModule(pasted, modules.length + 1);
     setModules((current) => [...current, nextModule].slice(-MAX_MODULES));
@@ -373,139 +332,122 @@ export function ChatInterface() {
     window.setTimeout(() => setCopiedId(null), 1200);
   }
 
-  const canSubmit =
-    (input.trim().length > 0 || modules.length > 0) && !isStreaming;
+  const canSubmit = (input.trim().length > 0 || modules.length > 0) && !isStreaming;
 
   return (
     <div className="flex min-h-dvh overflow-hidden bg-[var(--app-bg)] text-[var(--ctp-text)]">
-      <aside className="hidden w-[284px] shrink-0 flex-col border-r border-white/10 bg-[var(--sidebar-bg)] px-3 py-4 backdrop-blur-2xl lg:flex">
-        <div className="flex items-center justify-between px-2">
-          <div className="flex items-center gap-3">
-            <div className="grid size-9 place-items-center rounded-[12px] bg-[linear-gradient(135deg,var(--ctp-mauve),var(--ctp-teal))] text-[var(--ctp-crust)] shadow-[0_12px_35px_rgba(203,166,247,0.24)]">
-              <Sparkles size={18} strokeWidth={2.4} />
+
+      {/* ── Sidebar ── */}
+      <aside className="hidden w-[260px] shrink-0 flex-col border-r border-white/10 bg-[var(--sidebar-bg)] backdrop-blur-2xl lg:flex">
+
+        {/* Logo + New */}
+        <div className="flex items-center justify-between px-4 pt-5 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-[linear-gradient(135deg,var(--ctp-mauve),var(--ctp-teal))] text-[var(--ctp-crust)] shadow-[0_8px_24px_rgba(203,166,247,0.28)]">
+              <Sparkles size={15} strokeWidth={2.4} />
             </div>
-            <div>
-              <p className="font-serif text-xl leading-none tracking-normal text-[var(--ctp-text)]">
-                Deepbox
-              </p>
-              <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-[var(--ctp-subtext0)]">
-                DeepSeek V4
-              </p>
-            </div>
+            <span className="font-serif text-[19px] leading-none text-[var(--ctp-text)]">
+              Deepbox
+            </span>
           </div>
           <button
             type="button"
             className="icon-button"
-            title="Novo projeto"
-            aria-label="Novo projeto"
+            title="Nova conversa"
+            aria-label="Nova conversa"
             onClick={createProject}
           >
-            <Plus size={17} />
+            <Plus size={16} />
           </button>
         </div>
 
-        <section className="mt-7 space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--ctp-overlay1)]">
-              Projetos
-            </p>
-            <button
-              type="button"
-              className="grid size-7 place-items-center rounded-full text-[var(--ctp-overlay2)] transition hover:bg-white/10 hover:text-[var(--ctp-text)]"
-              title="Novo projeto"
-              aria-label="Novo projeto"
-              onClick={createProject}
-            >
-              <Plus size={14} />
-            </button>
+        {/* Conversations */}
+        <nav className="flex-1 overflow-y-auto px-2 py-1">
+          <p className="mb-1.5 px-2 text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--ctp-overlay1)]">
+            Conversas
+          </p>
+          <div className="space-y-0.5">
+            {projects.map((project) => {
+              const lastUserMsg = [...project.messages]
+                .reverse()
+                .find((m) => m.role === "user");
+              const isActive = project.id === activeProject.id;
+              return (
+                <div
+                  key={project.id}
+                  className={`group relative flex items-center rounded-[12px] border transition-colors ${
+                    isActive
+                      ? "border-[var(--ctp-mauve)]/20 bg-[var(--ctp-mauve)]/8"
+                      : "border-transparent hover:border-white/8 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left"
+                    onClick={() => setActiveProjectId(project.id)}
+                  >
+                    <MessageSquare
+                      size={14}
+                      className={`mt-0.5 shrink-0 transition-colors ${
+                        isActive ? "text-[var(--ctp-mauve)]" : "text-[var(--ctp-overlay1)]"
+                      }`}
+                    />
+                    <div className="min-w-0">
+                      <p
+                        className={`truncate text-[13px] leading-5 transition-colors ${
+                          isActive
+                            ? "font-medium text-[var(--ctp-text)]"
+                            : "text-[var(--ctp-subtext0)]"
+                        }`}
+                      >
+                        {project.name}
+                      </p>
+                      {lastUserMsg ? (
+                        <p className="mt-0.5 truncate text-[11px] leading-4 text-[var(--ctp-overlay1)]">
+                          {lastUserMsg.content.slice(0, 50)}
+                        </p>
+                      ) : (
+                        <p className="mt-0.5 text-[11px] leading-4 text-[var(--ctp-overlay2)] italic">
+                          Sem mensagens
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className="mr-2 grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--ctp-overlay1)] opacity-0 transition hover:bg-white/10 hover:text-[var(--ctp-text)] group-hover:opacity-100"
+                    title="Configurações do projeto"
+                    aria-label="Configurações do projeto"
+                    onClick={() => setProjectSettingsId(project.id)}
+                  >
+                    <Settings size={13} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
-          <div className="max-h-36 space-y-1 overflow-y-auto pr-1">
-            {projects.map((project) => (
-              <button
-                key={project.id}
-                type="button"
-                className={`project-row ${
-                  project.id === activeProject.id ? "project-row-active" : ""
-                }`}
-                title={project.name}
-                onClick={() => setActiveProjectId(project.id)}
-              >
-                <LibraryBig size={14} />
-                <span className="truncate">{project.name}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="mt-5 rounded-[18px] border border-white/10 bg-white/[0.035] p-3">
-          <input
-            value={activeProject.name}
-            onChange={(event) =>
-              updateProject(activeProject.id, (project) => ({
-                ...project,
-                name: event.target.value,
-              }))
-            }
-            className="w-full rounded-[12px] border border-white/10 bg-black/10 px-3 py-2 text-sm font-medium text-[var(--ctp-text)] outline-none transition focus:border-[var(--ctp-mauve)]/50"
-            aria-label="Nome do projeto"
-          />
-          <textarea
-            value={activeProject.instructions}
-            onChange={(event) =>
-              updateProject(activeProject.id, (project) => ({
-                ...project,
-                instructions: event.target.value,
-              }))
-            }
-            rows={4}
-            placeholder="Instrucoes do projeto"
-            className="mt-2 w-full resize-none rounded-[12px] border border-white/10 bg-black/10 px-3 py-2 text-sm leading-5 text-[var(--ctp-subtext1)] outline-none transition placeholder:text-[var(--ctp-overlay1)] focus:border-[var(--ctp-mauve)]/50"
-          />
-          {projectMemoryModules.length > 0 ? (
-            <div className="mt-2 space-y-1.5">
-              {projectMemoryModules.map((module) => (
-                <ProjectMemoryRow
-                  key={module.id}
-                  module={module}
-                  onRemove={() => removeProjectModule(module.id)}
-                />
-              ))}
-            </div>
-          ) : null}
-        </section>
-
-        <nav className="mt-5 space-y-2">
-          {CHAT_MODES.map((mode) => {
-            const Icon = modeIcons[mode.id as keyof typeof modeIcons] ?? Sparkles;
-            const active = mode.id === modeId;
-            return (
-              <button
-                key={mode.id}
-                type="button"
-                title={mode.description}
-                onClick={() => setModeId(mode.id as ChatModeId)}
-                className={`mode-row ${active ? "mode-row-active" : ""}`}
-              >
-                <Icon size={16} />
-                <span>{mode.label}</span>
-                <span className="ml-auto text-[10px] uppercase tracking-[0.16em] text-[var(--ctp-overlay1)]">
-                  {mode.model.includes("flash") ? "Flash" : "Pro"}
-                </span>
-              </button>
-            );
-          })}
         </nav>
 
-        <div className="mt-auto space-y-3 px-2 text-xs leading-5 text-[var(--ctp-subtext0)]">
-          <div className="rounded-[14px] border border-white/10 bg-white/[0.035] p-3">
-            <p className="font-medium text-[var(--ctp-text)]">Contexto</p>
-            <p className="mt-1">
-              {messages.length} mensagens - {projectMemoryModules.length} mem.
-            </p>
-          </div>
+        {/* Bottom: Settings */}
+        <div className="border-t border-white/10 px-2 py-3">
+          <button
+            type="button"
+            className="relative flex w-full items-center gap-2.5 rounded-[12px] border border-transparent px-3 py-2.5 text-sm text-[var(--ctp-subtext0)] transition hover:border-white/8 hover:bg-white/[0.04] hover:text-[var(--ctp-text)]"
+            onClick={() => setShowSettings(true)}
+          >
+            <Settings size={15} />
+            <span>Configurações</span>
+            {!apiKey && (
+              <span
+                className="ml-auto size-2 rounded-full bg-[var(--ctp-peach)]"
+                title="API Key não configurada"
+              />
+            )}
+          </button>
         </div>
       </aside>
 
+      {/* ── Main ── */}
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 bg-[rgba(30,30,46,0.62)] px-4 backdrop-blur-2xl sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
@@ -517,7 +459,7 @@ export function ChatInterface() {
                 {activeProject.name}
               </p>
               <p className="truncate text-xs text-[var(--ctp-subtext0)]">
-                {activeMode.label} - {activeMode.model}
+                {activeMode.label} · {activeMode.model}
               </p>
             </div>
           </div>
@@ -526,8 +468,8 @@ export function ChatInterface() {
             <button
               type="button"
               className="icon-button lg:hidden"
-              title="Novo projeto"
-              aria-label="Novo projeto"
+              title="Nova conversa"
+              aria-label="Nova conversa"
               onClick={createProject}
             >
               <Plus size={17} />
@@ -535,8 +477,17 @@ export function ChatInterface() {
             <button
               type="button"
               className="icon-button"
-              title="Limpar"
-              aria-label="Limpar"
+              title="Configurações do projeto"
+              aria-label="Configurações do projeto"
+              onClick={() => setProjectSettingsId(activeProject.id)}
+            >
+              <Settings size={16} />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              title="Limpar conversa"
+              aria-label="Limpar conversa"
               onClick={clearChat}
             >
               <Trash2 size={16} />
@@ -583,7 +534,7 @@ export function ChatInterface() {
                       module={module}
                       onRemove={() =>
                         setModules((current) =>
-                          current.filter((item) => item.id !== module.id),
+                          current.filter((m) => m.id !== module.id),
                         )
                       }
                       onPin={() => pinModuleToProject(module)}
@@ -655,9 +606,275 @@ export function ChatInterface() {
           </div>
         </section>
       </main>
+
+      {/* ── Modals ── */}
+      {projectSettingsId !== null && (
+        <ProjectSettingsModal
+          project={projects.find((p) => p.id === projectSettingsId) ?? projects[0]}
+          onClose={() => setProjectSettingsId(null)}
+          onUpdate={(updater) => updateProject(projectSettingsId, updater)}
+          onDelete={() => {
+            deleteProject(projectSettingsId);
+            setProjectSettingsId(null);
+          }}
+          onRemoveModule={(moduleId) =>
+            removeProjectModule(projectSettingsId, moduleId)
+          }
+        />
+      )}
+
+      {showSettings && (
+        <SettingsModal
+          apiKey={apiKey}
+          onChange={setApiKey}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
     </div>
   );
 }
+
+// ── ProjectSettingsModal ──────────────────────────────────────────────────────
+
+function ProjectSettingsModal({
+  project,
+  onClose,
+  onUpdate,
+  onDelete,
+  onRemoveModule,
+}: {
+  project: Project;
+  onClose: () => void;
+  onUpdate: (updater: (p: Project) => Project) => void;
+  onDelete: () => void;
+  onRemoveModule: (moduleId: string) => void;
+}) {
+  const [name, setName] = useState(project.name);
+  const [instructions, setInstructions] = useState(project.instructions);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  function save() {
+    onUpdate((p) => ({
+      ...p,
+      name: name.trim() || p.name,
+      instructions,
+    }));
+    onClose();
+  }
+
+  return (
+    <div
+      className="modal-overlay"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="modal-panel">
+        <div className="modal-header">
+          <h2 className="text-base font-semibold text-[var(--ctp-text)]">
+            Configurações do projeto
+          </h2>
+          <button
+            type="button"
+            className="icon-button"
+            title="Fechar"
+            aria-label="Fechar"
+            onClick={onClose}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="modal-body space-y-4">
+          <div>
+            <label className="modal-label">Nome</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="modal-input"
+              placeholder="Nome do projeto"
+            />
+          </div>
+
+          <div>
+            <label className="modal-label">Instruções</label>
+            <p className="mb-2 text-[12px] text-[var(--ctp-overlay1)]">
+              Defina o contexto, tom de resposta, regras ou qualquer preferência
+              persistente para este projeto.
+            </p>
+            <textarea
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              rows={6}
+              placeholder="Ex: Você é um assistente especializado em marketing. Use linguagem informal e seja objetivo."
+              className="modal-textarea"
+            />
+          </div>
+
+          {project.memoryModules.length > 0 && (
+            <div>
+              <label className="modal-label">
+                Memória ({project.memoryModules.length} módulo
+                {project.memoryModules.length !== 1 ? "s" : ""})
+              </label>
+              <div className="space-y-1.5">
+                {project.memoryModules.map((module) => (
+                  <ProjectMemoryRow
+                    key={module.id}
+                    module={module}
+                    onRemove={() => onRemoveModule(module.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          {confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-[var(--ctp-red)]">
+                Excluir projeto?
+              </span>
+              <button
+                type="button"
+                className="danger-button"
+                onClick={onDelete}
+              >
+                Sim, excluir
+              </button>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="danger-ghost-button"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 size={13} />
+              Excluir projeto
+            </button>
+          )}
+          <div className="flex gap-2">
+            <button type="button" className="ghost-button" onClick={onClose}>
+              Cancelar
+            </button>
+            <button type="button" className="primary-button" onClick={save}>
+              Salvar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── SettingsModal ─────────────────────────────────────────────────────────────
+
+function SettingsModal({
+  apiKey,
+  onChange,
+  onClose,
+}: {
+  apiKey: string;
+  onChange: (key: string) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState(apiKey);
+  const [show, setShow] = useState(false);
+
+  function save() {
+    onChange(draft.trim());
+    onClose();
+  }
+
+  return (
+    <div
+      className="modal-overlay"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="modal-panel" style={{ maxWidth: 440 }}>
+        <div className="modal-header">
+          <h2 className="text-base font-semibold text-[var(--ctp-text)]">
+            Configurações
+          </h2>
+          <button
+            type="button"
+            className="icon-button"
+            title="Fechar"
+            aria-label="Fechar"
+            onClick={onClose}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="modal-body space-y-5">
+          <div>
+            <label className="modal-label">DeepSeek API Key</label>
+            <p className="mb-2 text-[12px] text-[var(--ctp-subtext0)]">
+              Sua chave é salva apenas no seu navegador e nunca enviada para
+              servidores externos.
+            </p>
+            <div className="relative">
+              <input
+                type={show ? "text" : "password"}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="sk-..."
+                className="modal-input pr-10"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") save();
+                }}
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--ctp-overlay1)] transition hover:text-[var(--ctp-text)]"
+                onClick={() => setShow(!show)}
+                title={show ? "Ocultar chave" : "Mostrar chave"}
+                aria-label={show ? "Ocultar chave" : "Mostrar chave"}
+              >
+                {show ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            <p className="mt-1.5 text-[11px] text-[var(--ctp-overlay1)]">
+              Obtenha em{" "}
+              <a
+                href="https://platform.deepseek.com"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[var(--ctp-blue)] underline underline-offset-2"
+              >
+                platform.deepseek.com
+              </a>
+            </p>
+          </div>
+        </div>
+
+        <div className="modal-footer" style={{ justifyContent: "flex-end" }}>
+          <div className="flex gap-2">
+            <button type="button" className="ghost-button" onClick={onClose}>
+              Cancelar
+            </button>
+            <button type="button" className="primary-button" onClick={save}>
+              Salvar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── EmptyState ────────────────────────────────────────────────────────────────
 
 function EmptyState({
   onPickPrompt,
@@ -684,6 +901,8 @@ function EmptyState({
     </div>
   );
 }
+
+// ── MessageBubble ─────────────────────────────────────────────────────────────
 
 function MessageBubble({
   message,
@@ -740,7 +959,10 @@ function MessageBubble({
               isUser ? "text-[17px]" : "text-[18px]"
             }`}
           >
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents}
+            >
               {message.content}
             </ReactMarkdown>
           </div>
@@ -757,7 +979,9 @@ function MessageBubble({
           </div>
         ) : null}
 
-        {message.sources?.length ? <SourceList sources={message.sources} /> : null}
+        {message.sources?.length ? (
+          <SourceList sources={message.sources} />
+        ) : null}
 
         {!isUser && message.content ? (
           <div className="mt-3 flex items-center gap-2 opacity-0 transition group-hover:opacity-100">
@@ -782,6 +1006,8 @@ function MessageBubble({
     </article>
   );
 }
+
+// ── ProjectMemoryRow ──────────────────────────────────────────────────────────
 
 function ProjectMemoryRow({
   module,
@@ -808,6 +1034,8 @@ function ProjectMemoryRow({
     </div>
   );
 }
+
+// ── TextModuleChip ────────────────────────────────────────────────────────────
 
 function TextModuleChip({
   module,
@@ -858,6 +1086,8 @@ function TextModuleChip({
   );
 }
 
+// ── AttachedModule ────────────────────────────────────────────────────────────
+
 function AttachedModule({ module }: { module: TextModule }) {
   return (
     <div className="rounded-[15px] border border-[var(--ctp-teal)]/20 bg-[var(--ctp-teal)]/8 p-3">
@@ -871,6 +1101,8 @@ function AttachedModule({ module }: { module: TextModule }) {
     </div>
   );
 }
+
+// ── SourceList ────────────────────────────────────────────────────────────────
 
 function SourceList({ sources }: { sources: SearchResult[] }) {
   return (
@@ -891,6 +1123,8 @@ function SourceList({ sources }: { sources: SearchResult[] }) {
   );
 }
 
+// ── Markdown ──────────────────────────────────────────────────────────────────
+
 const markdownComponents = {
   a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
     <a href={href} target="_blank" rel="noreferrer">
@@ -898,8 +1132,12 @@ const markdownComponents = {
     </a>
   ),
   pre: ({ children }: { children?: React.ReactNode }) => <pre>{children}</pre>,
-  code: ({ children }: { children?: React.ReactNode }) => <code>{children}</code>,
+  code: ({ children }: { children?: React.ReactNode }) => (
+    <code>{children}</code>
+  ),
 };
+
+// ── Stream ────────────────────────────────────────────────────────────────────
 
 async function readStream(
   body: ReadableStream<Uint8Array>,
@@ -929,6 +1167,8 @@ async function readStream(
     }
   }
 }
+
+// ── Message helpers ───────────────────────────────────────────────────────────
 
 function toApiMessage(message: ChatMessage) {
   return {
@@ -975,6 +1215,8 @@ function isLargePaste(value: string): boolean {
   );
 }
 
+// ── Utils ─────────────────────────────────────────────────────────────────────
+
 function createId() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 }
@@ -986,6 +1228,8 @@ function formatCount(value: number): string {
 function escapeAttribute(value: string): string {
   return value.replace(/"/g, "&quot;");
 }
+
+// ── Storage ───────────────────────────────────────────────────────────────────
 
 function readSavedProjects(): Project[] {
   if (typeof window === "undefined") return [createDefaultProject()];
@@ -1009,7 +1253,9 @@ function readSavedProjects(): Project[] {
 
 function readSavedActiveProjectId(): string {
   if (typeof window === "undefined") return DEFAULT_PROJECT_ID;
-  return window.localStorage.getItem(ACTIVE_PROJECT_KEY) ?? DEFAULT_PROJECT_ID;
+  return (
+    window.localStorage.getItem(ACTIVE_PROJECT_KEY) ?? DEFAULT_PROJECT_ID
+  );
 }
 
 function createDefaultProject(messages: ChatMessage[] = []): Project {
@@ -1039,7 +1285,6 @@ function readLegacyMessages(): ChatMessage[] {
   try {
     const saved = window.localStorage.getItem("deepbox.messages");
     if (!saved) return [];
-
     const parsed = JSON.parse(saved) as ChatMessage[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {

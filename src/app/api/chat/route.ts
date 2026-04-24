@@ -64,12 +64,14 @@ export async function POST(request: Request) {
       };
 
       try {
-        const apiKey = process.env.DEEPSEEK_API_KEY;
+        const apiKey =
+          request.headers.get("X-Deepseek-Key") ??
+          process.env.DEEPSEEK_API_KEY;
         if (!apiKey) {
           send({
             type: "error",
             message:
-              "Defina DEEPSEEK_API_KEY em .env.local e reinicie o servidor.",
+              "Configure sua API Key em Configurações ou defina DEEPSEEK_API_KEY em .env.local.",
           });
           send({ type: "done" });
           return;
